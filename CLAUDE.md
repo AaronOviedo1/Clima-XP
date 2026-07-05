@@ -6,7 +6,7 @@ Sistema de administración para renta de aerocoolers (verano) y calentones (invi
 
 - **Next.js 16** (App Router, TypeScript, Server Actions) — carpeta `src/`
 - **Tailwind CSS v4** + **shadcn/ui** (base radix, preset nova) — mobile-first
-- **Prisma** + **PostgreSQL** (Railway)
+- **Prisma** + **PostgreSQL** (Supabase — pooler 6543 en runtime, `DIRECT_URL` 5432 para migraciones)
 - **Auth.js v5** (NextAuth beta) con credenciales, roles `ADMIN` y `REPARTIDOR`
 - Deploy en **Vercel**
 
@@ -59,7 +59,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 ## Estado de fases
 
 - [x] **Fase 0 — Setup**: Next.js + shadcn + Prisma + Auth.js (roles) + layout mobile-first + navegación + seed de usuarios.
-  - Pendiente por credenciales del usuario: `DATABASE_URL` real (Railway), primera migración (`db:migrate`), seed, y deploy a Vercel con variables de entorno.
+  - Pendiente por credenciales del usuario: `DATABASE_URL` + `DIRECT_URL` reales (Supabase), primera migración (`db:migrate`), seed, y deploy a Vercel con variables de entorno.
 - [ ] Fase 1 — Modelo de datos completo + seed de equipos/unidades/zonas
 - [ ] Fase 2 — Clientes y Rentas (CRUD + estados + pagos)
 - [ ] Fase 3 — Dashboard del día + vista repartidor
@@ -73,7 +73,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 
 ## Puesta en marcha local
 
-1. Copia `.env.example` a `.env` y pon un `DATABASE_URL` válido (Railway) y un `AUTH_SECRET` (`npx auth secret`).
+1. Copia `.env.example` a `.env` y pon `DATABASE_URL` + `DIRECT_URL` de Supabase y un `AUTH_SECRET` (`npx auth secret`).
 2. `npm install`
 3. `npm run db:migrate` (crea las tablas)
 4. `npm run db:seed` (crea admin + repartidor)

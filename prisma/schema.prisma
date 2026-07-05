@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Supabase: pooler en modo transacción (puerto 6543) para la app.
+  url       = env("DATABASE_URL")
+  // Conexión directa (puerto 5432) para migraciones de Prisma.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Rol {

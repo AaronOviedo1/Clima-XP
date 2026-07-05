@@ -10,7 +10,7 @@ export function BottomNav({ esAdmin }: { esAdmin: boolean }) {
   const items = navParaRol(esAdmin);
 
   return (
-    <nav className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <nav className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
       <ul className="flex items-stretch overflow-x-auto">
         {items.map(({ href, label, icon: Icon }) => {
           const activo =
