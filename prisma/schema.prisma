@@ -1,0 +1,25 @@
+// Schema base — Fase 0 (solo lo necesario para Auth.js con roles).
+// El schema completo del dominio (Cliente, Renta, Unidad, etc.) se agrega en la Fase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMIN
+  REPARTIDOR
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nombre       String
+  email        String   @unique
+  passwordHash String
+  rol          Rol      @default(REPARTIDOR)
+  createdAt    DateTime @default(now())
+}
