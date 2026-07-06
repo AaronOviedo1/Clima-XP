@@ -114,25 +114,27 @@ async function seedModelosYUnidades() {
   }
 }
 
-// ---------- Zonas de envío ----------
-// Zona 1 (6km) … Zona 5 (35km), rango $50–$400. Costos editables en Configuración.
-const ZONAS = [
-  { nombre: "Zona 1", kmMax: 6, costo: 50 },
-  { nombre: "Zona 2", kmMax: 15, costo: 150 },
-  { nombre: "Zona 3", kmMax: 22, costo: 250 },
-  { nombre: "Zona 4", kmMax: 28, costo: 350 },
-  { nombre: "Zona 5", kmMax: 35, costo: 400 },
-];
+// ---------- Tarifa de domicilio por km ----------
+// Precios reales del negocio: costo exacto por km (5–35 km). El modelo ZonaEnvio
+// se usa como tabla de tarifa: kmMax = km, costo = precio de ese km.
+// La sugerencia redondea la distancia hacia arriba al km más cercano.
+const TARIFA_KM: Record<number, number> = {
+  5: 89, 6: 105, 7: 122, 8: 139, 9: 157, 10: 174, 11: 192, 12: 209,
+  13: 227, 14: 244, 15: 261, 16: 279, 17: 296, 18: 314, 19: 331, 20: 349,
+  21: 366, 22: 383, 23: 401, 24: 418, 25: 436, 26: 453, 27: 471, 28: 488,
+  29: 505, 30: 523, 31: 540, 32: 558, 33: 575, 34: 593, 35: 610,
+};
 
 async function seedZonas() {
-  for (const z of ZONAS) {
-    await prisma.zonaEnvio.upsert({
-      where: { nombre: z.nombre },
-      update: { kmMax: z.kmMax, costo: z.costo },
-      create: z,
-    });
-  }
-  console.log(`✔ ${ZONAS.length} zonas de envío`);
+  // Reemplaza cualquier tarifa previa (incluidas las "Zona 1…5" iniciales).
+  await prisma.zonaEnvio.deleteMany({});
+  const filas = Object.entries(TARIFA_KM).map(([km, costo]) => ({
+    nombre: `${km} km`,
+    kmMax: Number(km),
+    costo,
+  }));
+  await prisma.zonaEnvio.createMany({ data: filas });
+  console.log(`✔ Tarifa de domicilio: ${filas.length} tramos por km (5–35 km, $89–$610)`);
 }
 
 // ---------- Accesorios ----------

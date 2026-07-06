@@ -62,7 +62,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 - [x] **Fase 0 — Setup**: Next.js + shadcn + Prisma + Auth.js (roles) + layout mobile-first + navegación + seed de usuarios.
   - Pendiente por credenciales del usuario: `DATABASE_URL` + `DIRECT_URL` reales (Supabase), primera migración (`db:migrate`), seed, y deploy a Vercel con variables de entorno.
 - [x] **Fase 1 — Modelo de datos completo + seed**: schema del dominio (Cliente, Renta, Unidad, ModeloEquipo, Pago, etc.), migración aplicada a Supabase, seed con equipos/precios reales (Eco-Fresco, Turbo-Frío, Chispas-Frescas, Fire Sense Café), 28 unidades (EF×6, TF×2, CAL×20), 5 zonas y 10 accesorios.
-- [ ] Fase 2 — Clientes y Rentas (CRUD + estados + pagos)
+- [x] **Fase 2 — Clientes y Rentas (CRUD + estados + pagos)**: CRUD de clientes con normalización E.164 y detección de duplicados; formulario de renta con unidades filtradas por disponibilidad (revalidación transaccional anti-doble-apartado), total en vivo, regla de calentones 3+, descuentos con nota; tarifa de domicilio por km ($89–$610, tabla real) con sugerencia y override; flujo de estados (con efectos sobre inventario) y registro de pagos/anticipos/saldo. Verificado contra Supabase (8/8 reglas).
 - [ ] Fase 3 — Dashboard del día + vista repartidor
 - [ ] Fase 4 — Domicilio automático (Google Maps)
 - [ ] Fase 5 — Migración del Excel
