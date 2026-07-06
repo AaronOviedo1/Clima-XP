@@ -50,8 +50,9 @@ src/
       page.tsx       # Dashboard "Hoy"
       ruta/ rentas/ clientes/ inventario/ calendario/ reportes/ configuracion/
 prisma/
-  schema.prisma      # Fase 0: solo Rol + User (schema completo en Fase 1)
-  seed.ts            # usuarios iniciales
+  schema.prisma      # schema completo del dominio (Fase 1)
+  migrations/        # init + fase1_dominio_completo
+  seed.ts            # usuarios + modelos, unidades, zonas y accesorios reales
 ```
 
 Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mantenerse sincronizado con el flag `soloAdmin` en `src/lib/nav.ts`.
@@ -60,7 +61,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 
 - [x] **Fase 0 — Setup**: Next.js + shadcn + Prisma + Auth.js (roles) + layout mobile-first + navegación + seed de usuarios.
   - Pendiente por credenciales del usuario: `DATABASE_URL` + `DIRECT_URL` reales (Supabase), primera migración (`db:migrate`), seed, y deploy a Vercel con variables de entorno.
-- [ ] Fase 1 — Modelo de datos completo + seed de equipos/unidades/zonas
+- [x] **Fase 1 — Modelo de datos completo + seed**: schema del dominio (Cliente, Renta, Unidad, ModeloEquipo, Pago, etc.), migración aplicada a Supabase, seed con equipos/precios reales (Eco-Fresco, Turbo-Frío, Chispas-Frescas, Fire Sense Café), 28 unidades (EF×6, TF×2, CAL×20), 5 zonas y 10 accesorios.
 - [ ] Fase 2 — Clientes y Rentas (CRUD + estados + pagos)
 - [ ] Fase 3 — Dashboard del día + vista repartidor
 - [ ] Fase 4 — Domicilio automático (Google Maps)

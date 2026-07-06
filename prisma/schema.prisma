@@ -1,5 +1,4 @@
-// Schema base — Fase 0 (solo lo necesario para Auth.js con roles).
-// El schema completo del dominio (Cliente, Renta, Unidad, etc.) se agrega en la Fase 1.
+// Schema completo del dominio — Fase 1.
 
 generator client {
   provider = "prisma-client-js"
@@ -18,11 +17,211 @@ enum Rol {
   REPARTIDOR
 }
 
+enum TipoEquipo {
+  AEROCOOLER
+  CALENTON
+}
+
+enum EstadoUnidad {
+  DISPONIBLE
+  RENTADA
+  MANTENIMIENTO
+  BAJA
+}
+
+enum EstadoRenta {
+  COTIZADA // cliente interesado, sin confirmar
+  CONFIRMADA // fecha y equipo apartados
+  EN_RUTA // repartidor salió a entregar
+  ENTREGADA // equipo con el cliente
+  RECOGIDA // equipo recuperado
+  CONCLUIDA // pagada y cerrada
+  CANCELADA
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  LINK_MERCADO_PAGO
+  OTRO
+}
+
+enum TipoPago {
+  ANTICIPO
+  LIQUIDACION
+  REEMBOLSO
+}
+
+enum CanalOrigen {
+  MESSENGER
+  WHATSAPP
+  RECOMENDACION
+  RECURRENTE
+  OTRO
+}
+
+enum TipoAccesorio {
+  MANGUERA
+  EXTENSION
+  TAMBO_GAS
+}
+
+enum EstadoTambo {
+  LLENO
+  VACIO
+  EN_CLIENTE
+}
+
 model User {
   id           String   @id @default(cuid())
   nombre       String
   email        String   @unique
   passwordHash String
   rol          Rol      @default(REPARTIDOR)
+  rentas       Renta[]  @relation("RepartidorRentas")
   createdAt    DateTime @default(now())
+}
+
+model Cliente {
+  id          String      @id @default(cuid())
+  nombre      String
+  telefono    String? // normalizado E.164: +52662XXXXXXX
+  canalOrigen CanalOrigen @default(WHATSAPP)
+  notas       String?
+  rentas      Renta[]
+  createdAt   DateTime    @default(now())
+
+  @@index([telefono])
+}
+
+model ModeloEquipo {
+  id            String     @id @default(cuid())
+  tipo          TipoEquipo
+  nombre        String     @unique // "Eco-Fresco", "Turbo-Frío", "Fire Sense Café", etc.
+  precioDia     Int // en pesos (enteros, sin centavos)
+  precioDia3Mas Int? // precio con 3+ unidades (calentones: 495)
+  specs         Json? // CFM, área, peso, dimensiones, etc.
+  unidades      Unidad[]
+}
+
+model Unidad {
+  id             String          @id @default(cuid())
+  modeloId       String
+  modelo         ModeloEquipo    @relation(fields: [modeloId], references: [id])
+  codigo         String          @unique // etiqueta física: "EF-01", "TF-02", "CAL-05"
+  estado         EstadoUnidad    @default(DISPONIBLE)
+  notas          String? // "bomba falla", "manchado", etc.
+  rentaItems     RentaUnidad[]
+  mantenimientos Mantenimiento[]
+}
+
+model Mantenimiento {
+  id          String   @id @default(cuid())
+  unidadId    String
+  unidad      Unidad   @relation(fields: [unidadId], references: [id])
+  descripcion String
+  costo       Int?
+  fecha       DateTime @default(now())
+  resuelto    Boolean  @default(false)
+}
+
+model Accesorio {
+  id          String           @id @default(cuid())
+  tipo        TipoAccesorio
+  descripcion String // "Extensión 15m", "Manguera 10m", "Tambo #3"
+  codigo      String?          @unique
+  estadoTambo EstadoTambo? // solo aplica a TAMBO_GAS
+  rentas      RentaAccesorio[]
+}
+
+model ZonaEnvio {
+  id     String @id @default(cuid())
+  nombre String @unique // "Zona 1"
+  kmMax  Float // límite superior de la zona
+  costo  Int
+}
+
+model Renta {
+  id             String      @id @default(cuid())
+  clienteId      String
+  cliente        Cliente     @relation(fields: [clienteId], references: [id])
+  estado         EstadoRenta @default(COTIZADA)
+
+  fechaInicio    DateTime @db.Date
+  fechaFin       DateTime @db.Date // día de recolección
+  ventanaEntrega String? // "11:00 a 3:00 PM"
+
+  direccion    String
+  lat          Float?
+  lng          Float?
+  linkMaps     String?
+  codigoAcceso String? // "código 3112#" — aparece seguido en las notas
+  distanciaKm  Float?
+
+  costoDomicilio       Int     @default(0)
+  domicilioSobrescrito Boolean @default(false) // true si el admin lo editó manual
+
+  descuentoMonto Int     @default(0)
+  descuentoNota  String? // "25% renta larga", "bomba fallaba"
+
+  requiereFactura Boolean @default(false)
+  facturada       Boolean @default(false)
+  cfdiUuid        String?
+
+  repartidorId String?
+  repartidor   User?   @relation("RepartidorRentas", fields: [repartidorId], references: [id])
+
+  unidades   RentaUnidad[]
+  accesorios RentaAccesorio[]
+  pagos      Pago[]
+  mensajes   MensajeWhatsApp[]
+  notas      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([fechaInicio, fechaFin])
+  @@index([estado])
+}
+
+model RentaUnidad {
+  id        String @id @default(cuid())
+  rentaId   String
+  renta     Renta  @relation(fields: [rentaId], references: [id], onDelete: Cascade)
+  unidadId  String
+  unidad    Unidad @relation(fields: [unidadId], references: [id])
+  precioDia Int // snapshot del precio al momento de rentar
+
+  @@unique([rentaId, unidadId])
+}
+
+model RentaAccesorio {
+  id          String    @id @default(cuid())
+  rentaId     String
+  renta       Renta     @relation(fields: [rentaId], references: [id], onDelete: Cascade)
+  accesorioId String
+  accesorio   Accesorio @relation(fields: [accesorioId], references: [id])
+  cargo       Int       @default(0) // gas $200, accesorios normalmente $0
+}
+
+model Pago {
+  id          String     @id @default(cuid())
+  rentaId     String
+  renta       Renta      @relation(fields: [rentaId], references: [id])
+  monto       Int
+  metodo      MetodoPago
+  tipo        TipoPago   @default(LIQUIDACION)
+  mpPaymentId String? // id de Mercado Pago si vino por link
+  mpLinkUrl   String?
+  pagado      Boolean    @default(false) // false = link generado sin pagar
+  fecha       DateTime   @default(now())
+}
+
+model MensajeWhatsApp {
+  id          String   @id @default(cuid())
+  rentaId     String
+  renta       Renta    @relation(fields: [rentaId], references: [id])
+  plantilla   String // "confirmacion", "en_camino", "recordatorio_recoleccion"
+  waMessageId String?
+  estado      String // sent / delivered / read / failed
+  createdAt   DateTime @default(now())
 }
