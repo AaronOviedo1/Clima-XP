@@ -34,6 +34,11 @@ yarn-error.log*
 .env*
 !.env.example
 
+# datos con información personal de clientes (NO subir a repo público)
+*.xlsx
+*.xls
+/data/
+
 # vercel
 .vercel
 

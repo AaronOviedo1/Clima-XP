@@ -21,7 +21,7 @@ function dmsADecimal(g: string, m: string, s: string, hemi: string): number {
 }
 
 const RE_DMS =
-  /(\d{1,3})°\s*(\d{1,2})['′]\s*([\d.]+)["″]?\s*([NSEW])/gi;
+  /(\d{1,3})°\s*(\d{1,2})['′]\s*([\d.]+)["″'′]?\s*([NSEW])/gi;
 
 const RE_DECIMAL = /(-?\d{1,3}\.\d{3,})\s*[, ]\s*(-?\d{1,3}\.\d{3,})/;
 

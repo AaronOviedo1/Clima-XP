@@ -22,6 +22,10 @@ npm run db:deploy    # prisma migrate deploy (producción/CI)
 npm run db:seed      # crea usuarios admin + repartidor (lee .env)
 npm run db:studio    # prisma studio
 npm run db:generate  # regenerar cliente Prisma
+
+# Migración del Excel histórico (coloca el .xlsx en la raíz):
+npx tsx scripts/migrate-excel.ts            # dry-run: genera data/revision-migracion.csv
+npx tsx scripts/migrate-excel.ts --commit   # inserta (idempotente, usa DIRECT_URL)
 ```
 
 ## Convenciones
@@ -65,7 +69,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 - [x] **Fase 2 — Clientes y Rentas (CRUD + estados + pagos)**: CRUD de clientes con normalización E.164 y detección de duplicados; formulario de renta con unidades filtradas por disponibilidad (revalidación transaccional anti-doble-apartado), total en vivo, regla de calentones 3+, descuentos con nota; tarifa de domicilio por km ($89–$610, tabla real) con sugerencia y override; flujo de estados (con efectos sobre inventario) y registro de pagos/anticipos/saldo. Verificado contra Supabase (8/8 reglas).
 - [x] **Fase 3 — Dashboard del día + vista repartidor**: pantalla "Hoy" con KPIs (entregas, recolecciones, por cobrar), entregas/recolecciones del día con acciones de un tap (En ruta / Entregado / Recogido), rentas de mañana y saldos pendientes (solo admin). Deep links a Google Maps (coords o dirección) y WhatsApp por tarjeta. Vista filtrada por rol (el repartidor solo ve lo asignado y sin datos de dinero). Verificado contra Supabase (7/7).
 - [~] **Fase 4 — Domicilio automático (parcial, sin API key)**: parser de ubicación (coords decimales, DMS `29°06'51.9"N…`, links de Maps con coords, expansión de links cortos `maps.app.goo.gl` vía redirect) integrado al formulario de renta (guarda `lat/lng/linkMaps`). **Pendiente (requiere `GOOGLE_MAPS_API_KEY` + `BODEGA_LAT/LNG`)**: geocoding de direcciones de texto y Distance Matrix para distancia real → sugerencia automática de km/zona.
-- [ ] Fase 5 — Migración del Excel
+- [x] **Fase 5 — Migración del Excel**: `scripts/migrate-excel.ts` lee las 6 hojas (coolers/calentones 2023–2026), mapea columnas por encabezado (tolera layouts distintos), infiere el año por temporada, normaliza teléfonos (extrae el primero de cadenas con varios), parsea fechas en español (incl. typos/rangos) y coords/DMS del lugar, ignora filas TOTAL, dedup de clientes por teléfono/nombre, y marca históricas como CONCLUIDA/CANCELADA con pago = total. Genera `data/revision-migracion.csv` con filas ambiguas. Idempotente (usa `DIRECT_URL`, borra marcadas `⟦mig⟧` y reinserta). **482 rentas** migradas (2023:13, 2024:219, 2025:177, 2026:76), 424 clientes. El `.xlsx` y el CSV están gitignored (datos personales).
 - [x] **Fase 6 — Ruta del día**: página `/ruta` con las entregas de hoy como paradas ordenadas (nearest-neighbor desde bodega si hay coords + `BODEGA_LAT/LNG`, si no por captura), botón "Abrir ruta en Google Maps" (deep link multi-parada, se parte en varias si hay >10 waypoints) y acciones de un tap por parada. Aviso masivo de WhatsApp → Fase 7.
 - [ ] Fase 7 — WhatsApp Business Cloud API
 - [ ] Fase 8 — Mercado Pago

@@ -93,11 +93,12 @@ export async function datosDelDia(opts: {
     }),
   ]);
 
-  // Saldos pendientes (solo admin): rentas activas o concluidas con saldo > 0.
+  // Saldos pendientes (solo admin): rentas activas con saldo > 0.
+  // Se excluyen CONCLUIDA (ya pagadas/cerradas), CANCELADA y COTIZADA.
   let saldos: RentaConSaldo[] = [];
   if (opts.esAdmin) {
     const candidatas = await prisma.renta.findMany({
-      where: { estado: { notIn: ["CANCELADA", "COTIZADA"] } },
+      where: { estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA"] } },
       include: rentaInclude,
       orderBy: { fechaInicio: "asc" },
       take: 300,
