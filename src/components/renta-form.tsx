@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   crearRenta,
   sugerirDomicilio,
+  resolverUbicacion,
   unidadesParaFechas,
   type UnidadOpcion,
 } from "@/lib/actions/rentas";
+import { linkMapsPunto } from "@/lib/maps";
 import { calcularRenta } from "@/lib/renta-calculo";
 import { diasDeRenta, fechaDesdeInput } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
@@ -69,6 +71,13 @@ export function RentaForm({
   const [ventanaEntrega, setVentanaEntrega] = useState("");
   const [codigoAcceso, setCodigoAcceso] = useState("");
 
+  const [ubicacionTexto, setUbicacionTexto] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [linkMaps, setLinkMaps] = useState<string | null>(null);
+  const [ubicacionMsg, setUbicacionMsg] = useState<string | null>(null);
+  const [ubicando, startUbicar] = useTransition();
+
   const [distanciaKm, setDistanciaKm] = useState("");
   const [costoDomicilio, setCostoDomicilio] = useState(0);
   const [domicilioSobrescrito, setDomicilioSobrescrito] = useState(false);
@@ -115,6 +124,31 @@ export function RentaForm({
       if (on) next.set(a.id, cargoPorDefecto(a.tipo));
       else next.delete(a.id);
       return next;
+    });
+  }
+
+  function onUbicar() {
+    const texto = ubicacionTexto.trim();
+    if (!texto) return;
+    setUbicacionMsg(null);
+    startUbicar(async () => {
+      const res = await resolverUbicacion(texto);
+      if (res.coords) {
+        setLat(res.coords.lat);
+        setLng(res.coords.lng);
+        setLinkMaps(res.linkMaps ?? null);
+        setUbicacionMsg(
+          `📍 ${res.coords.lat.toFixed(5)}, ${res.coords.lng.toFixed(5)}`,
+        );
+      } else {
+        setLat(null);
+        setLng(null);
+        setLinkMaps(res.linkMaps ?? null);
+        setUbicacionMsg(
+          res.error ??
+            "No se detectaron coordenadas (se guardará el link/texto tal cual).",
+        );
+      }
     });
   }
 
@@ -190,6 +224,9 @@ export function RentaForm({
         ventanaEntrega: ventanaEntrega || null,
         direccion,
         codigoAcceso: codigoAcceso || null,
+        lat,
+        lng,
+        linkMaps,
         distanciaKm: distanciaKm ? parseFloat(distanciaKm) : null,
         costoDomicilio,
         domicilioSobrescrito,
@@ -341,6 +378,42 @@ export function RentaForm({
             placeholder="Calle, colonia, referencias… (o pega link/coords de Maps)"
             onChange={(e) => setDireccion(e.target.value)}
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ubic">Ubicación (link de Maps o coordenadas)</Label>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <Input
+              id="ubic"
+              value={ubicacionTexto}
+              placeholder="maps.app.goo.gl/… o 29.10, -111.00"
+              className="h-11"
+              onChange={(e) => setUbicacionTexto(e.target.value)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11"
+              disabled={ubicando}
+              onClick={onUbicar}
+            >
+              {ubicando ? "…" : "Ubicar"}
+            </Button>
+          </div>
+          {ubicacionMsg && (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              {ubicacionMsg}
+              {lat != null && lng != null && (
+                <a
+                  href={linkMapsPunto(direccion, lat, lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  ver
+                </a>
+              )}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="codigo">Código de acceso</Label>

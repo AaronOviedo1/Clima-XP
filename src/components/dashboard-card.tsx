@@ -13,7 +13,13 @@ import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function DashboardCard({ r }: { r: TarjetaRenta }) {
+export function DashboardCard({
+  r,
+  mostrarSaldo = true,
+}: {
+  r: TarjetaRenta;
+  mostrarSaldo?: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +48,17 @@ export function DashboardCard({ r }: { r: TarjetaRenta }) {
               {formatoTelefono(r.telefono)}
             </p>
           </Link>
-          <div className="text-right">
-            {r.saldo > 0 ? (
-              <span className="text-sm font-medium text-amber-600 dark:text-amber-500">
-                Debe {pesos(r.saldo)}
-              </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">Pagado</span>
-            )}
-          </div>
+          {mostrarSaldo && (
+            <div className="text-right">
+              {r.saldo > 0 ? (
+                <span className="text-sm font-medium text-amber-600 dark:text-amber-500">
+                  Debe {pesos(r.saldo)}
+                </span>
+              ) : (
+                <span className="text-sm text-muted-foreground">Pagado</span>
+              )}
+            </div>
+          )}
         </div>
 
         <p className="text-sm">

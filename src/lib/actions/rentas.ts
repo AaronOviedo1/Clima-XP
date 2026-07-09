@@ -10,10 +10,49 @@ import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
 import { unidadesDisponibles, unidadesNoDisponibles } from "@/lib/disponibilidad";
 import { sugerirCostoDomicilio, type SugerenciaDomicilio } from "@/lib/domicilio";
 import { TRANSICIONES } from "@/lib/rentas";
+import {
+  parseCoordenadas,
+  esLinkCortoMaps,
+  esUrl,
+  type Coordenadas,
+} from "@/lib/coordenadas";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
 export async function sugerirDomicilio(km: number): Promise<SugerenciaDomicilio | null> {
   return sugerirCostoDomicilio(km);
+}
+
+// Resuelve una ubicación pegada (coords, DMS o link de Maps). Expande links
+// cortos (maps.app.goo.gl) siguiendo el redirect en el server. Sin API key.
+export type ResultadoUbicacion = {
+  coords: Coordenadas | null;
+  linkMaps: string | null;
+  error?: string;
+};
+
+export async function resolverUbicacion(texto: string): Promise<ResultadoUbicacion> {
+  const entrada = texto?.trim();
+  if (!entrada) return { coords: null, linkMaps: null };
+
+  const linkMaps = esUrl(entrada) ? entrada : null;
+
+  // Intento directo (coords, DMS, o URL con coords embebidas).
+  const directo = parseCoordenadas(entrada);
+  if (directo) return { coords: directo, linkMaps };
+
+  // Link corto: expandir siguiendo el redirect y parsear la URL final.
+  if (esLinkCortoMaps(entrada)) {
+    try {
+      const res = await fetch(entrada, { redirect: "follow" });
+      const expandida = res.url || "";
+      const coords = parseCoordenadas(expandida);
+      return { coords, linkMaps: expandida || linkMaps };
+    } catch {
+      return { coords: null, linkMaps, error: "No se pudo expandir el link." };
+    }
+  }
+
+  return { coords: null, linkMaps };
 }
 
 // ---------- Disponibilidad para el formulario ----------
@@ -56,6 +95,9 @@ const crearSchema = z.object({
   ventanaEntrega: z.string().trim().optional().nullable(),
   direccion: z.string().trim().min(1, "La dirección es obligatoria"),
   codigoAcceso: z.string().trim().optional().nullable(),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
+  linkMaps: z.string().trim().optional().nullable(),
   distanciaKm: z.number().nonnegative().nullable().optional(),
   costoDomicilio: z.number().int().nonnegative().default(0),
   domicilioSobrescrito: z.boolean().default(false),
@@ -134,6 +176,9 @@ export async function crearRenta(
           ventanaEntrega: d.ventanaEntrega || null,
           direccion: d.direccion,
           codigoAcceso: d.codigoAcceso || null,
+          lat: d.lat ?? null,
+          lng: d.lng ?? null,
+          linkMaps: d.linkMaps || null,
           distanciaKm: d.distanciaKm ?? null,
           costoDomicilio: d.costoDomicilio,
           domicilioSobrescrito: d.domicilioSobrescrito,

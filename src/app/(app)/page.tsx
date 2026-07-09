@@ -98,7 +98,7 @@ export default async function DashboardPage() {
             <Truck className="size-5" /> Entregas de hoy ({entregas.length})
           </h2>
           {entregas.map((r) => (
-            <DashboardCard key={r.id} r={tarjetaDesdeRenta(r)} />
+            <DashboardCard key={r.id} r={tarjetaDesdeRenta(r)} mostrarSaldo={esAdmin} />
           ))}
         </section>
       )}
@@ -111,7 +111,7 @@ export default async function DashboardPage() {
             {recolecciones.length})
           </h2>
           {recolecciones.map((r) => (
-            <DashboardCard key={r.id} r={tarjetaDesdeRenta(r)} />
+            <DashboardCard key={r.id} r={tarjetaDesdeRenta(r)} mostrarSaldo={esAdmin} />
           ))}
         </section>
       )}
