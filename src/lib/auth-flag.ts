@@ -9,7 +9,7 @@ import type { Session } from "next-auth";
  * Todo el código de autenticación (auth.ts, auth.config.ts, /login,
  * server actions) sigue en su lugar: solo hay que poner esto en `true`.
  */
-export const AUTH_HABILITADA = false;
+export const AUTH_HABILITADA = true;
 
 /**
  * Usuario asumido mientras el login está oculto. Se le da rol ADMIN para

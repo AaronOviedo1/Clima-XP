@@ -5,6 +5,8 @@ const RUTAS_SOLO_ADMIN = ["/reportes", "/configuracion", "/clientes", "/inventar
 
 // Config edge-safe (sin Prisma ni bcrypt) — se comparte con el middleware.
 export const authConfig = {
+  // La app siempre corre detrás de hosts confiables (Vercel / localhost).
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
