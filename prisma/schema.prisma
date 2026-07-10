@@ -225,3 +225,11 @@ model MensajeWhatsApp {
   estado      String // sent / delivered / read / failed
   createdAt   DateTime @default(now())
 }
+
+// Ajustes editables desde /configuracion (clave-valor).
+// Claves en uso: "bodegaLat", "bodegaLng" (fallback: env BODEGA_LAT/LNG).
+model Configuracion {
+  clave     String   @id
+  valor     String
+  updatedAt DateTime @updatedAt
+}

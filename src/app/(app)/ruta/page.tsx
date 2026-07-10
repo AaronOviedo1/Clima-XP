@@ -2,7 +2,8 @@ import { Navigation, MapPin } from "lucide-react";
 import { auth } from "@/auth";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { datosDelDia, tarjetaDesdeRenta } from "@/lib/dashboard";
-import { ordenarRuta, bodegaDesdeEnv } from "@/lib/ruta";
+import { ordenarRuta } from "@/lib/ruta";
+import { obtenerBodega } from "@/lib/configuracion";
 import { linksRuta, type ParadaRuta } from "@/lib/maps";
 import { fechaLarga } from "@/lib/fechas";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ export default async function RutaPage() {
     repartidorId: usuario.id,
   });
 
-  const bodega = bodegaDesdeEnv();
+  const bodega = (await obtenerBodega())?.coords ?? null;
   const ordenadas = ordenarRuta(entregas, bodega);
 
   const paradas: ParadaRuta[] = ordenadas.map((r) => ({
