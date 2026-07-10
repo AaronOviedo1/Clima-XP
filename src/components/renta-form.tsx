@@ -2,6 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import {
   crearRenta,
   sugerirDomicilio,
@@ -20,6 +24,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ClienteRapidoDialog } from "@/components/cliente-rapido-dialog";
 import {
   Select,
   SelectContent,
@@ -29,7 +40,22 @@ import {
 } from "@/components/ui/select";
 
 type ClienteOpcion = { id: string; nombre: string };
-type AccesorioOpcion = { id: string; descripcion: string; tipo: string };
+type AccesorioOpcion = {
+  id: string;
+  descripcion: string;
+  tipo: string;
+  codigo: string | null;
+};
+
+// Qué accesorios aplican a cada tipo de equipo.
+const TIPO_ACCESORIO_INFO: Record<
+  string,
+  { titulo: string; equipo: "AEROCOOLER" | "CALENTON" }
+> = {
+  MANGUERA: { titulo: "Mangueras", equipo: "AEROCOOLER" },
+  EXTENSION: { titulo: "Extensiones", equipo: "AEROCOOLER" },
+  TAMBO_GAS: { titulo: "Tambos de gas", equipo: "CALENTON" },
+};
 
 const METODOS = [
   { v: "EFECTIVO", l: "Efectivo" },
@@ -42,8 +68,14 @@ function cargoPorDefecto(tipo: string): number {
   return tipo === "TAMBO_GAS" ? 200 : 0;
 }
 
+// El calendario trabaja con Date locales; las fechas del formulario son "yyyy-MM-dd".
+function fechaLocalDesdeInput(yyyyMmDd: string): Date {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 export function RentaForm({
-  clientes,
+  clientes: clientesIniciales,
   accesorios,
   unidadesIniciales,
   fechasIniciales,
@@ -59,10 +91,12 @@ export function RentaForm({
   const [pendingSubmit, startSubmit] = useTransition();
   const [cargandoUnidades, startCargarUnidades] = useTransition();
 
+  const [clientes, setClientes] = useState<ClienteOpcion[]>(clientesIniciales);
   const [clienteId, setClienteId] = useState(clientePreseleccionado ?? "");
   const [estado, setEstado] = useState<"COTIZADA" | "CONFIRMADA">("CONFIRMADA");
   const [fechaInicio, setFechaInicio] = useState(fechasIniciales.inicio);
   const [fechaFin, setFechaFin] = useState(fechasIniciales.fin);
+  const [calAbierto, setCalAbierto] = useState(false);
 
   const [unidades, setUnidades] = useState<UnidadOpcion[]>(unidadesIniciales);
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -118,11 +152,11 @@ export function RentaForm({
     });
   }
 
-  function toggleAccesorio(a: AccesorioOpcion, on: boolean) {
+  function toggleAccesorio(a: AccesorioOpcion) {
     setAccCargos((prev) => {
       const next = new Map(prev);
-      if (on) next.set(a.id, cargoPorDefecto(a.tipo));
-      else next.delete(a.id);
+      if (next.has(a.id)) next.delete(a.id);
+      else next.set(a.id, cargoPorDefecto(a.tipo));
       return next;
     });
   }
@@ -171,9 +205,38 @@ export function RentaForm({
     () => unidades.filter((u) => sel.has(u.id)),
     [unidades, sel],
   );
+  // Accesorios visibles según el tipo de los equipos seleccionados.
+  const tiposEquipoSeleccionados = useMemo(
+    () => new Set(unidadesSeleccionadas.map((u) => u.tipo)),
+    [unidadesSeleccionadas],
+  );
+
+  const gruposAccesorios = useMemo(() => {
+    const map = new Map<string, AccesorioOpcion[]>();
+    for (const a of accesorios) {
+      const info = TIPO_ACCESORIO_INFO[a.tipo];
+      if (!info || !tiposEquipoSeleccionados.has(info.equipo)) continue;
+      const arr = map.get(a.tipo) ?? [];
+      arr.push(a);
+      map.set(a.tipo, arr);
+    }
+    return [...map.entries()];
+  }, [accesorios, tiposEquipoSeleccionados]);
+
+  // Solo cuentan los accesorios que aplican a los equipos seleccionados
+  // (si se deselecciona el último calentón, sus tambos dejan de cobrarse).
+  const accesoriosVisibles = useMemo(
+    () =>
+      new Set(gruposAccesorios.flatMap(([, items]) => items.map((a) => a.id))),
+    [gruposAccesorios],
+  );
+
   const cargosAccesorios = useMemo(
-    () => [...accCargos.values()].reduce((a, b) => a + b, 0),
-    [accCargos],
+    () =>
+      [...accCargos]
+        .filter(([id]) => accesoriosVisibles.has(id))
+        .reduce((suma, [, cargo]) => suma + cargo, 0),
+    [accCargos, accesoriosVisibles],
   );
   const dias = diasDeRenta(fechaDesdeInput(fechaInicio), fechaDesdeInput(fechaFin));
 
@@ -231,10 +294,9 @@ export function RentaForm({
         costoDomicilio,
         domicilioSobrescrito,
         unidadIds: [...sel],
-        accesorios: [...accCargos.entries()].map(([accesorioId, cargo]) => ({
-          accesorioId,
-          cargo,
-        })),
+        accesorios: [...accCargos.entries()]
+          .filter(([accesorioId]) => accesoriosVisibles.has(accesorioId))
+          .map(([accesorioId, cargo]) => ({ accesorioId, cargo })),
         descuentoMonto,
         descuentoNota: descuentoNota || null,
         requiereFactura,
@@ -254,49 +316,80 @@ export function RentaForm({
       {/* Cliente */}
       <section className="space-y-2">
         <Label>Cliente</Label>
-        <Select value={clienteId} onValueChange={setClienteId}>
-          <SelectTrigger className="h-11 w-full">
-            <SelectValue placeholder="Selecciona un cliente" />
-          </SelectTrigger>
-          <SelectContent>
-            {clientes.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={clienteId} onValueChange={setClienteId}>
+            <SelectTrigger className="h-11 w-full min-w-0 flex-1">
+              <SelectValue placeholder="Selecciona un cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              {clientes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <ClienteRapidoDialog
+            onCreado={(c) => {
+              setClientes((prev) =>
+                prev.some((x) => x.id === c.id)
+                  ? prev
+                  : [...prev, c].sort((a, b) =>
+                      a.nombre.localeCompare(b.nombre, "es"),
+                    ),
+              );
+              setClienteId(c.id);
+            }}
+          />
+        </div>
       </section>
 
       {/* Fechas */}
-      <section className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="fi">Entrega</Label>
-          <Input
-            id="fi"
-            type="date"
-            value={fechaInicio}
-            className="h-11"
-            onChange={(e) => {
-              setFechaInicio(e.target.value);
-              recargarUnidades(e.target.value, fechaFin);
-            }}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ff">Recolección</Label>
-          <Input
-            id="ff"
-            type="date"
-            value={fechaFin}
-            className="h-11"
-            onChange={(e) => {
-              setFechaFin(e.target.value);
-              recargarUnidades(fechaInicio, e.target.value);
-            }}
-          />
-        </div>
-        <p className="col-span-2 text-xs text-muted-foreground">
+      <section className="space-y-2">
+        <Label>Fechas de renta</Label>
+        <Popover open={calAbierto} onOpenChange={setCalAbierto}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full justify-start text-left font-normal"
+            >
+              <CalendarIcon className="mr-1 size-4 shrink-0 opacity-60" />
+              <span className="truncate">
+                {format(fechaLocalDesdeInput(fechaInicio), "EEE d MMM", { locale: es })}
+                {" → "}
+                {format(fechaLocalDesdeInput(fechaFin), "EEE d MMM", { locale: es })}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="range"
+              locale={es}
+              numberOfMonths={1}
+              defaultMonth={fechaLocalDesdeInput(fechaInicio)}
+              selected={{
+                from: fechaLocalDesdeInput(fechaInicio),
+                to: fechaLocalDesdeInput(fechaFin),
+              }}
+              onSelect={(rango: DateRange | undefined) => {
+                if (!rango?.from) return;
+                const inicio = format(rango.from, "yyyy-MM-dd");
+                const fin = format(rango.to ?? rango.from, "yyyy-MM-dd");
+                setFechaInicio(inicio);
+                setFechaFin(fin);
+                recargarUnidades(inicio, fin);
+                // Cerrar al completar el rango (dos días distintos).
+                if (rango.to && rango.to.getTime() !== rango.from.getTime()) {
+                  setCalAbierto(false);
+                }
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+        <p className="text-xs text-muted-foreground">
+          Entrega {format(fechaLocalDesdeInput(fechaInicio), "d MMM", { locale: es })} ·
+          Recolección {format(fechaLocalDesdeInput(fechaFin), "d MMM", { locale: es })} ·{" "}
           {dias} {dias === 1 ? "día" : "días"} de renta
         </p>
       </section>
@@ -447,7 +540,8 @@ export function RentaForm({
             id="dom"
             type="number"
             inputMode="numeric"
-            value={costoDomicilio}
+            value={costoDomicilio === 0 ? "" : costoDomicilio}
+            placeholder="0"
             className="h-11"
             onChange={(e) => {
               setCostoDomicilio(Math.max(0, parseInt(e.target.value) || 0));
@@ -467,40 +561,77 @@ export function RentaForm({
 
       {/* Accesorios */}
       {accesorios.length > 0 && (
-        <section className="space-y-2">
+        <section className="space-y-3">
           <Label>Accesorios</Label>
-          <div className="space-y-2">
-            {accesorios.map((a) => {
-              const on = accCargos.has(a.id);
+          {gruposAccesorios.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {sel.size === 0
+                ? "Selecciona equipos para ver sus accesorios."
+                : "No hay accesorios para los equipos seleccionados."}
+            </p>
+          ) : (
+            gruposAccesorios.map(([tipo, items]) => {
+              const seleccionados = items.filter((a) => accCargos.has(a.id));
+              const cargoGrupo = seleccionados.length
+                ? (accCargos.get(seleccionados[0].id) ?? 0)
+                : 0;
               return (
-                <div key={a.id} className="flex items-center gap-3">
-                  <Checkbox
-                    id={`acc-${a.id}`}
-                    checked={on}
-                    onCheckedChange={(v) => toggleAccesorio(a, v === true)}
-                  />
-                  <Label htmlFor={`acc-${a.id}`} className="flex-1 font-normal">
-                    {a.descripcion}
-                  </Label>
-                  {on && (
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      value={accCargos.get(a.id) ?? 0}
-                      className="h-9 w-24"
-                      onChange={(e) =>
-                        setAccCargos((prev) => {
-                          const next = new Map(prev);
-                          next.set(a.id, Math.max(0, parseInt(e.target.value) || 0));
-                          return next;
-                        })
-                      }
-                    />
+                <div key={tipo} className="space-y-1.5">
+                  <p className="text-sm font-medium">
+                    {TIPO_ACCESORIO_INFO[tipo].titulo}{" "}
+                    <span className="font-normal text-muted-foreground">
+                      · {seleccionados.length} de {items.length}
+                    </span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {items.map((a) => {
+                      const activo = accCargos.has(a.id);
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => toggleAccesorio(a)}
+                          className={
+                            "rounded-md border px-3 py-2 text-sm font-medium transition-colors " +
+                            (activo
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "hover:bg-muted")
+                          }
+                        >
+                          {a.codigo ?? a.descripcion}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {seleccionados.length > 0 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-sm text-muted-foreground">
+                        Cargo c/u
+                      </span>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        value={cargoGrupo === 0 ? "" : cargoGrupo}
+                        placeholder="0"
+                        className="h-9 w-24"
+                        onChange={(e) => {
+                          const cargo = Math.max(0, parseInt(e.target.value) || 0);
+                          setAccCargos((prev) => {
+                            const next = new Map(prev);
+                            for (const s of seleccionados) next.set(s.id, cargo);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        = {pesos(cargoGrupo * seleccionados.length)}
+                      </span>
+                    </div>
                   )}
                 </div>
               );
-            })}
-          </div>
+            })
+          )}
         </section>
       )}
 
@@ -515,7 +646,8 @@ export function RentaForm({
               id="desc"
               type="number"
               inputMode="numeric"
-              value={descuentoMonto}
+              value={descuentoMonto === 0 ? "" : descuentoMonto}
+              placeholder="0"
               className="h-11"
               onChange={(e) => setDescuentoMonto(Math.max(0, parseInt(e.target.value) || 0))}
             />
@@ -549,7 +681,7 @@ export function RentaForm({
           <Input
             type="number"
             inputMode="numeric"
-            value={anticipoMonto}
+            value={anticipoMonto === 0 ? "" : anticipoMonto}
             placeholder="Monto"
             className="h-11"
             onChange={(e) => setAnticipoMonto(Math.max(0, parseInt(e.target.value) || 0))}

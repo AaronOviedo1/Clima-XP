@@ -63,6 +63,49 @@ export async function crearCliente(
   redirect(`/clientes/${cliente.id}`);
 }
 
+export type ClienteRapidoResult =
+  | { cliente: { id: string; nombre: string } }
+  | { duplicado: { id: string; nombre: string } }
+  | { error: string };
+
+// Crea un cliente desde el formulario de renta: devuelve el cliente en vez de redirigir.
+export async function crearClienteRapido(datos: {
+  nombre: string;
+  telefono?: string | null;
+  canalOrigen?: string;
+  forzar?: boolean;
+}): Promise<ClienteRapidoResult> {
+  const parsed = clienteSchema.safeParse({
+    nombre: datos.nombre,
+    telefono: datos.telefono || null,
+    canalOrigen: datos.canalOrigen || "WHATSAPP",
+    notas: null,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const { nombre, canalOrigen, notas } = parsed.data;
+  const telefono = normalizarTelefono(parsed.data.telefono ?? undefined);
+
+  if (parsed.data.telefono && !telefono) {
+    return { error: "El teléfono no parece válido (debe ser un número mexicano de 10 dígitos)." };
+  }
+
+  if (telefono && !datos.forzar) {
+    const existente = await prisma.cliente.findFirst({ where: { telefono } });
+    if (existente) {
+      return { duplicado: { id: existente.id, nombre: existente.nombre } };
+    }
+  }
+
+  const cliente = await prisma.cliente.create({
+    data: { nombre, telefono, canalOrigen, notas },
+    select: { id: true, nombre: true },
+  });
+  revalidatePath("/clientes");
+  return { cliente };
+}
+
 export async function editarCliente(
   id: string,
   _prev: ClienteFormState,

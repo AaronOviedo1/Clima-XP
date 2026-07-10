@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LogOut } from "lucide-react";
 import { cerrarSesion } from "@/lib/actions/auth";
 import { AUTH_HABILITADA } from "@/lib/auth-flag";
@@ -14,7 +15,15 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="flex items-center gap-2">
-        <span className="text-lg font-bold tracking-tight">Climaxpress</span>
+        <Image
+          src="/logo.svg"
+          alt="ClimaX"
+          width={66}
+          height={48}
+          priority
+          unoptimized
+          className="h-12 w-auto"
+        />
         {/* El rol solo aplica con login activo. */}
         {AUTH_HABILITADA && (
           <Badge variant={esAdmin ? "default" : "secondary"}>

@@ -62,7 +62,8 @@ export function PagoForm({
             id="monto"
             type="number"
             inputMode="numeric"
-            value={monto}
+            value={monto === 0 ? "" : monto}
+            placeholder="0"
             className="h-11"
             onChange={(e) => setMonto(Math.max(0, parseInt(e.target.value) || 0))}
           />

@@ -24,8 +24,8 @@ export default async function NuevaRentaPage({
       orderBy: { nombre: "asc" },
     }),
     prisma.accesorio.findMany({
-      select: { id: true, descripcion: true, tipo: true },
-      orderBy: { descripcion: "asc" },
+      select: { id: true, descripcion: true, tipo: true, codigo: true },
+      orderBy: [{ tipo: "asc" }, { codigo: "asc" }],
     }),
     unidadesParaFechas(inicio, fin),
   ]);
@@ -41,23 +41,13 @@ export default async function NuevaRentaPage({
         <h1 className="text-2xl font-bold tracking-tight">Nueva renta</h1>
       </div>
 
-      {clientes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Primero crea un cliente en{" "}
-          <Link href="/clientes/nuevo" className="underline">
-            Clientes
-          </Link>
-          .
-        </p>
-      ) : (
-        <RentaForm
-          clientes={clientes}
-          accesorios={accesorios}
-          unidadesIniciales={unidadesIniciales}
-          fechasIniciales={{ inicio, fin }}
-          clientePreseleccionado={cliente}
-        />
-      )}
+      <RentaForm
+        clientes={clientes}
+        accesorios={accesorios}
+        unidadesIniciales={unidadesIniciales}
+        fechasIniciales={{ inicio, fin }}
+        clientePreseleccionado={cliente}
+      />
     </div>
   );
 }
