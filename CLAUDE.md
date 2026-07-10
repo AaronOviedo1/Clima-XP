@@ -73,7 +73,7 @@ Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mante
 - [x] **Fase 6 — Ruta del día**: página `/ruta` con las entregas de hoy como paradas ordenadas (nearest-neighbor desde bodega si hay coords + `BODEGA_LAT/LNG`, si no por captura), botón "Abrir ruta en Google Maps" (deep link multi-parada, se parte en varias si hay >10 waypoints) y acciones de un tap por parada. Aviso masivo de WhatsApp → Fase 7.
 - [ ] Fase 7 — WhatsApp Business Cloud API
 - [ ] Fase 8 — Mercado Pago
-- [ ] Fase 9 — Reportes
+- [x] **Fase 9 — Reportes** (solo admin): pantalla `/reportes` con selector de periodo (todos / por año), KPIs (ingresos, rentas, ticket promedio, por cobrar), ingresos por mes/año, comparativo aerocoolers vs calentones, ingresos por método de pago, top clientes, utilización por unidad e ingresos por domicilio (km). Gráficas de barras CSS sin dependencias. Agrupa por `renta.fechaInicio` (los pagos históricos tienen fecha de migración, no la real).
 - [ ] Fase 10 — CFDI (no prioridad)
 
 ## Puesta en marcha local
