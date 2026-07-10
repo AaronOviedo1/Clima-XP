@@ -16,6 +16,8 @@ import {
   esUrl,
   type Coordenadas,
 } from "@/lib/coordenadas";
+import { geocodificarDireccion, distanciaKmDesde, mapsHabilitado } from "@/lib/google-maps";
+import { obtenerBodega } from "@/lib/configuracion";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
 export async function sugerirDomicilio(km: number): Promise<SugerenciaDomicilio | null> {
@@ -53,6 +55,83 @@ export async function resolverUbicacion(texto: string): Promise<ResultadoUbicaci
   }
 
   return { coords: null, linkMaps };
+}
+
+// Flujo completo de ubicación + domicilio (Fase 4):
+// 1) coords pegadas (link/DMS/decimales) o, si no hay, geocoding de la dirección
+// 2) Distance Matrix desde la bodega → km reales manejando
+// 3) km → tarifa sugerida (el admin siempre puede sobrescribir)
+export type UbicacionCompleta = {
+  coords: Coordenadas | null;
+  linkMaps: string | null;
+  direccionFormateada: string | null;
+  km: number | null;
+  minutos: number | null;
+  sugerencia: SugerenciaDomicilio | null;
+  avisos: string[];
+};
+
+export async function ubicarCompleto(entrada: {
+  ubicacion: string;
+  direccion: string;
+}): Promise<UbicacionCompleta> {
+  const avisos: string[] = [];
+  let coords: Coordenadas | null = null;
+  let linkMaps: string | null = null;
+  let direccionFormateada: string | null = null;
+
+  const ubicacion = entrada.ubicacion?.trim() ?? "";
+  const direccion = entrada.direccion?.trim() ?? "";
+
+  if (ubicacion) {
+    const r = await resolverUbicacion(ubicacion);
+    coords = r.coords;
+    linkMaps = r.linkMaps;
+    if (r.error) avisos.push(r.error);
+  }
+
+  // Sin coords aún: geocodificar la dirección de texto.
+  if (!coords && direccion) {
+    if (!mapsHabilitado()) {
+      avisos.push("Falta GOOGLE_MAPS_API_KEY para buscar direcciones de texto.");
+    } else {
+      const g = await geocodificarDireccion(direccion);
+      if (g.ok) {
+        coords = g.coords;
+        direccionFormateada = g.direccionFormateada;
+      } else {
+        avisos.push(g.error);
+      }
+    }
+  }
+
+  if (!coords && !ubicacion && !direccion) {
+    avisos.push("Escribe la dirección o pega un link/coordenadas primero.");
+  }
+
+  let km: number | null = null;
+  let minutos: number | null = null;
+  let sugerencia: SugerenciaDomicilio | null = null;
+
+  if (coords) {
+    const bodega = await obtenerBodega();
+    if (!bodega) {
+      avisos.push("Captura la bodega en Configuración para calcular la distancia.");
+    } else if (!mapsHabilitado()) {
+      avisos.push("Falta GOOGLE_MAPS_API_KEY para calcular la distancia.");
+    } else {
+      const d = await distanciaKmDesde(bodega.coords, coords);
+      if (d.ok) {
+        km = Math.round(d.km * 10) / 10;
+        minutos = d.minutos;
+        sugerencia = await sugerirCostoDomicilio(km);
+      } else {
+        avisos.push(d.error);
+      }
+    }
+  }
+
+  return { coords, linkMaps, direccionFormateada, km, minutos, sugerencia, avisos };
 }
 
 // ---------- Disponibilidad para el formulario ----------

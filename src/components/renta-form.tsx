@@ -9,7 +9,7 @@ import type { DateRange } from "react-day-picker";
 import {
   crearRenta,
   sugerirDomicilio,
-  resolverUbicacion,
+  ubicarCompleto,
   unidadesParaFechas,
   type UnidadOpcion,
 } from "@/lib/actions/rentas";
@@ -161,28 +161,53 @@ export function RentaForm({
     });
   }
 
+  // Un solo tap: coords pegadas o geocoding de la dirección, distancia real
+  // desde la bodega (Distance Matrix) y costo de domicilio sugerido.
   function onUbicar() {
-    const texto = ubicacionTexto.trim();
-    if (!texto) return;
+    if (!ubicacionTexto.trim() && !direccion.trim()) {
+      setUbicacionMsg("Escribe la dirección o pega un link/coordenadas primero.");
+      return;
+    }
     setUbicacionMsg(null);
     startUbicar(async () => {
-      const res = await resolverUbicacion(texto);
-      if (res.coords) {
-        setLat(res.coords.lat);
-        setLng(res.coords.lng);
-        setLinkMaps(res.linkMaps ?? null);
-        setUbicacionMsg(
-          `📍 ${res.coords.lat.toFixed(5)}, ${res.coords.lng.toFixed(5)}`,
-        );
-      } else {
-        setLat(null);
-        setLng(null);
-        setLinkMaps(res.linkMaps ?? null);
-        setUbicacionMsg(
-          res.error ??
-            "No se detectaron coordenadas (se guardará el link/texto tal cual).",
-        );
+      const res = await ubicarCompleto({
+        ubicacion: ubicacionTexto,
+        direccion,
+      });
+
+      setLat(res.coords?.lat ?? null);
+      setLng(res.coords?.lng ?? null);
+      setLinkMaps(res.linkMaps ?? null);
+
+      if (res.km != null) setDistanciaKm(String(res.km));
+      if (res.sugerencia) {
+        if (domicilioSobrescrito) {
+          res.avisos.push(
+            `Sugerencia: ${pesos(res.sugerencia.costo)} (no aplicada, costo editado a mano)`,
+          );
+        } else {
+          setCostoDomicilio(res.sugerencia.costo);
+          setNotaDomicilio(
+            res.sugerencia.fueraDeRango
+              ? `Fuera de tabla — se usó tarifa de ${res.sugerencia.kmTarifa} km`
+              : `Tarifa de ${res.sugerencia.kmTarifa} km`,
+          );
+        }
       }
+
+      const partes: string[] = [];
+      if (res.coords) {
+        partes.push(`📍 ${res.coords.lat.toFixed(5)}, ${res.coords.lng.toFixed(5)}`);
+      }
+      if (res.direccionFormateada) partes.push(res.direccionFormateada);
+      if (res.km != null) {
+        partes.push(`${res.km} km (${res.minutos} min) desde la bodega`);
+      }
+      partes.push(...res.avisos);
+      setUbicacionMsg(
+        partes.join(" · ") ||
+          "No se detectaron coordenadas (se guardará el link/texto tal cual).",
+      );
     });
   }
 
@@ -492,6 +517,10 @@ export function RentaForm({
               {ubicando ? "…" : "Ubicar"}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Con link/coords o solo con la dirección de arriba: calcula km desde la bodega y
+            sugiere el costo de domicilio.
+          </p>
           {ubicacionMsg && (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               {ubicacionMsg}
