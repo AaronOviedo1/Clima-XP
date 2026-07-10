@@ -1,5 +1,6 @@
 import {
   PrismaClient,
+  Prisma,
   TipoEquipo,
   TipoAccesorio,
   EstadoTambo,
@@ -42,6 +43,7 @@ async function seedUsuarios() {
 }
 
 // ---------- Modelos de equipo + unidades ----------
+// specs viene del archivo INVENTARIO CLIMAXPRESS.
 type ModeloSeed = {
   nombre: string;
   tipo: TipoEquipo;
@@ -49,6 +51,9 @@ type ModeloSeed = {
   precioDia3Mas?: number;
   prefijo: string; // prefijo de código de unidad, ej. "EF"
   cantidad: number; // cuántas unidades físicas crear
+  specs: Prisma.InputJsonObject;
+  // Colores por unidad (calentones): se asignan en orden a las unidades.
+  colores?: { color: string; cantidad: number }[];
 };
 
 const MODELOS: ModeloSeed[] = [
@@ -58,6 +63,16 @@ const MODELOS: ModeloSeed[] = [
     precioDia: 450,
     prefijo: "EF",
     cantidad: 6, // EF-01…EF-06
+    specs: {
+      flujoAire: "3600 CFM",
+      areaEnfriamiento: "35 a 40 m²",
+      ruido: "N/A",
+      peso: "18 kg",
+      potenciaMotor: "149.2 W",
+      capacidadAgua: "40 L",
+      dimensiones: "95 x 61 x 41 cm",
+      voltaje: "127 V / 60 Hz",
+    },
   },
   {
     nombre: "Turbo-Frío",
@@ -65,6 +80,16 @@ const MODELOS: ModeloSeed[] = [
     precioDia: 650,
     prefijo: "TF",
     cantidad: 2, // TF-01, TF-02
+    specs: {
+      flujoAire: "5300 CFM",
+      areaEnfriamiento: "70 m²",
+      ruido: "60 dB(A)",
+      peso: "38 kg",
+      potenciaMotor: "400 W",
+      capacidadAgua: "55 L",
+      dimensiones: "138 x 87 x 48 cm",
+      voltaje: "127 V / 60 Hz",
+    },
   },
   {
     nombre: "Chispas-Frescas",
@@ -72,6 +97,16 @@ const MODELOS: ModeloSeed[] = [
     precioDia: 550,
     prefijo: "CF",
     cantidad: 0, // actualmente 0 unidades
+    specs: {
+      flujoAire: "2680 CFM",
+      areaEnfriamiento: "45 m²",
+      ruido: "50 dB(A)",
+      peso: "19 kg",
+      potenciaMotor: "216 W",
+      capacidadAgua: "50 L",
+      dimensiones: "124 x 68 x 45.5 cm",
+      voltaje: "127 V / 60 Hz",
+    },
   },
   {
     nombre: "Fire Sense Café",
@@ -80,6 +115,22 @@ const MODELOS: ModeloSeed[] = [
     precioDia3Mas: 495, // 3+ calentones
     prefijo: "CAL",
     cantidad: 20, // CAL-01…CAL-20
+    colores: [
+      { color: "Café Obscuro", cantidad: 7 },
+      { color: "Gris Claro", cantidad: 8 },
+      { color: "Café Gratinado", cantidad: 5 },
+    ],
+    specs: {
+      marca: "Fire Sense",
+      areaQueCalienta: "20 a 30 m²",
+      gas: "20 kg / $200",
+      dimensiones: { altura: "232 cm", casco: "76 a 88 cm", base: "45 a 50 cm" },
+      variantes: [
+        { color: "Café Obscuro", cantidad: 7, marca: "Fire Sense", peso: "16.7 kg", material: "Acero" },
+        { color: "Gris Claro", cantidad: 8, marca: "Fire Sense", peso: "16.7 kg", material: "Acero" },
+        { color: "Café Gratinado", cantidad: 5, marca: "N/A", peso: "22 kg", material: "Metal", altura: "1.7 a 2 m" },
+      ],
+    },
   },
 ];
 
@@ -87,12 +138,13 @@ async function seedModelosYUnidades() {
   for (const m of MODELOS) {
     const modelo = await prisma.modeloEquipo.upsert({
       where: { nombre: m.nombre },
-      update: { tipo: m.tipo, precioDia: m.precioDia, precioDia3Mas: m.precioDia3Mas ?? null },
+      update: { tipo: m.tipo, precioDia: m.precioDia, precioDia3Mas: m.precioDia3Mas ?? null, specs: m.specs },
       create: {
         nombre: m.nombre,
         tipo: m.tipo,
         precioDia: m.precioDia,
         precioDia3Mas: m.precioDia3Mas ?? null,
+        specs: m.specs,
       },
     });
     console.log(
@@ -100,16 +152,31 @@ async function seedModelosYUnidades() {
         (m.precioDia3Mas ? ` · 3+: $${m.precioDia3Mas}` : ""),
     );
 
+    // Color por unidad (según INVENTARIO): se asigna en orden a las unidades.
+    const coloresPorUnidad: (string | null)[] = [];
+    for (const c of m.colores ?? []) {
+      for (let k = 0; k < c.cantidad; k++) coloresPorUnidad.push(c.color);
+    }
+
     for (let i = 1; i <= m.cantidad; i++) {
       const codigo = `${m.prefijo}-${String(i).padStart(2, "0")}`;
-      await prisma.unidad.upsert({
-        where: { codigo },
-        update: { modeloId: modelo.id },
-        create: { codigo, modeloId: modelo.id },
-      });
+      const color = coloresPorUnidad[i - 1] ?? null;
+      const existente = await prisma.unidad.findUnique({ where: { codigo }, select: { id: true, notas: true } });
+      if (existente) {
+        // No pisa notas manuales; solo asigna color si estaba vacío o ya era un color.
+        const puedeSetColor =
+          color != null && (existente.notas == null || existente.notas.trim() === "" || existente.notas === color);
+        await prisma.unidad.update({
+          where: { id: existente.id },
+          data: { modeloId: modelo.id, ...(puedeSetColor ? { notas: color } : {}) },
+        });
+      } else {
+        await prisma.unidad.create({ data: { codigo, modeloId: modelo.id, notas: color } });
+      }
     }
     if (m.cantidad > 0) {
-      console.log(`  → ${m.cantidad} unidades (${m.prefijo}-01…${m.prefijo}-${String(m.cantidad).padStart(2, "0")})`);
+      const detalleColor = m.colores ? ` (${m.colores.map((c) => `${c.cantidad} ${c.color}`).join(", ")})` : "";
+      console.log(`  → ${m.cantidad} unidades (${m.prefijo}-01…${m.prefijo}-${String(m.cantidad).padStart(2, "0")})${detalleColor}`);
     }
   }
 }
@@ -137,32 +204,48 @@ async function seedZonas() {
   console.log(`✔ Tarifa de domicilio: ${filas.length} tramos por km (5–35 km, $89–$610)`);
 }
 
-// ---------- Accesorios ----------
-const ACCESORIOS = [
-  // Mangueras (10m)
-  { codigo: "MG-01", tipo: TipoAccesorio.MANGUERA, descripcion: "Manguera 10m" },
-  { codigo: "MG-02", tipo: TipoAccesorio.MANGUERA, descripcion: "Manguera 10m" },
-  // Extensiones (5/10/15/45m)
-  { codigo: "EXT-05", tipo: TipoAccesorio.EXTENSION, descripcion: "Extensión 5m" },
-  { codigo: "EXT-10", tipo: TipoAccesorio.EXTENSION, descripcion: "Extensión 10m" },
-  { codigo: "EXT-15", tipo: TipoAccesorio.EXTENSION, descripcion: "Extensión 15m" },
-  { codigo: "EXT-45", tipo: TipoAccesorio.EXTENSION, descripcion: "Extensión 45m" },
-  // Tambos de gas (20kg)
-  { codigo: "TAMBO-01", tipo: TipoAccesorio.TAMBO_GAS, descripcion: "Tambo gas 20kg #1", estadoTambo: EstadoTambo.LLENO },
-  { codigo: "TAMBO-02", tipo: TipoAccesorio.TAMBO_GAS, descripcion: "Tambo gas 20kg #2", estadoTambo: EstadoTambo.LLENO },
-  { codigo: "TAMBO-03", tipo: TipoAccesorio.TAMBO_GAS, descripcion: "Tambo gas 20kg #3", estadoTambo: EstadoTambo.LLENO },
-  { codigo: "TAMBO-04", tipo: TipoAccesorio.TAMBO_GAS, descripcion: "Tambo gas 20kg #4", estadoTambo: EstadoTambo.LLENO },
-];
+// ---------- Accesorios (según INVENTARIO CLIMAXPRESS) ----------
+type AccesorioSeed = {
+  codigo: string;
+  tipo: TipoAccesorio;
+  descripcion: string;
+  estadoTambo?: EstadoTambo;
+};
+
+function construirAccesorios(): AccesorioSeed[] {
+  const acc: AccesorioSeed[] = [];
+  // Mangueras: 6 × 10m ($50 c/u)
+  for (let i = 1; i <= 6; i++)
+    acc.push({ codigo: `MG-${String(i).padStart(2, "0")}`, tipo: TipoAccesorio.MANGUERA, descripcion: "Manguera 10m" });
+  // Extensiones: 2×5m, 3×10m, 2×15m, 1×45m
+  const exts: [number, number][] = [[5, 2], [10, 3], [15, 2], [45, 1]];
+  for (const [metros, cant] of exts)
+    for (let i = 1; i <= cant; i++)
+      acc.push({ codigo: `EXT-${metros}-${i}`, tipo: TipoAccesorio.EXTENSION, descripcion: `Extensión ${metros}m` });
+  // Tambos de gas 20kg: 14
+  for (let i = 1; i <= 14; i++)
+    acc.push({ codigo: `TAMBO-${String(i).padStart(2, "0")}`, tipo: TipoAccesorio.TAMBO_GAS, descripcion: `Tambo gas 20kg #${i}`, estadoTambo: EstadoTambo.LLENO });
+  return acc;
+}
+
+const ACCESORIOS = construirAccesorios();
 
 async function seedAccesorios() {
-  for (const a of ACCESORIOS) {
-    await prisma.accesorio.upsert({
-      where: { codigo: a.codigo },
-      update: { tipo: a.tipo, descripcion: a.descripcion, estadoTambo: a.estadoTambo ?? null },
-      create: a,
-    });
+  const referenciados = await prisma.rentaAccesorio.count();
+  if (referenciados === 0) {
+    // Reset limpio (no hay accesorios usados en rentas).
+    await prisma.accesorio.deleteMany({});
+    await prisma.accesorio.createMany({ data: ACCESORIOS });
+  } else {
+    for (const a of ACCESORIOS) {
+      await prisma.accesorio.upsert({
+        where: { codigo: a.codigo },
+        update: { tipo: a.tipo, descripcion: a.descripcion, estadoTambo: a.estadoTambo ?? null },
+        create: a,
+      });
+    }
   }
-  console.log(`✔ ${ACCESORIOS.length} accesorios (mangueras, extensiones, tambos)`);
+  console.log(`✔ ${ACCESORIOS.length} accesorios: 6 mangueras, 8 extensiones, 14 tambos`);
 }
 
 async function main() {
