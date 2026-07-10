@@ -1,7 +1,7 @@
 import type { NextAuthConfig, Session } from "next-auth";
 
 // Rutas accesibles solo por ADMIN. El REPARTIDOR ve el dashboard y la ruta del día.
-const RUTAS_SOLO_ADMIN = ["/reportes", "/configuracion", "/clientes", "/inventario"];
+const RUTAS_SOLO_ADMIN = ["/reportes", "/configuracion", "/clientes", "/inventario", "/calendario"];
 
 // Config edge-safe (sin Prisma ni bcrypt) — se comparte con el middleware.
 export const authConfig = {
