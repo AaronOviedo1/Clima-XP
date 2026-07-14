@@ -1,29 +1,47 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Package } from "lucide-react";
 import { fechaCorta } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
 import {
+  equiposPorModelo,
   totalesDeRenta,
   ESTADO_RENTA_META,
-  type RentaCompleta,
+  type RentaParaTotales,
+  type UnidadConModelo,
 } from "@/lib/rentas";
+
+// Forma mínima que necesita la tarjeta; la satisfacen RentaLista,
+// RentaTarjeta y RentaCompleta.
+export type RentaListItemData = Omit<RentaParaTotales, "unidades"> & {
+  id: string;
+  estado: string;
+  cliente: { nombre: string };
+  unidades: ({ precioDia: number } & UnidadConModelo)[];
+};
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { claseColorDia } from "@/lib/colores-dia";
+import { cn } from "@/lib/utils";
 
 export function RentaListItem({
   renta,
   mostrarCliente = true,
 }: {
-  renta: RentaCompleta;
+  renta: RentaListItemData;
   mostrarCliente?: boolean;
 }) {
   const t = totalesDeRenta(renta);
   const meta = ESTADO_RENTA_META[renta.estado];
-  const equipos = renta.unidades.length;
+  const equipos = equiposPorModelo(renta.unidades);
 
   return (
     <Link href={`/rentas/${renta.id}`}>
-      <Card className="transition-colors hover:bg-muted/50">
+      <Card
+        className={cn(
+          "transition-[filter] hover:brightness-[0.97] dark:hover:brightness-110",
+          claseColorDia(renta.fechaInicio)
+        )}
+      >
         <CardContent className="flex items-center gap-3 py-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
@@ -37,9 +55,16 @@ export function RentaListItem({
             <p className="mt-0.5 flex items-center gap-1 text-sm text-muted-foreground">
               <CalendarDays className="size-3.5" />
               {fechaCorta(renta.fechaInicio)} → {fechaCorta(renta.fechaFin)}
-              <span className="text-xs">
-                · {equipos} {equipos === 1 ? "equipo" : "equipos"}
-              </span>
+            </p>
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <Package className="size-3.5 shrink-0" />
+              {equipos.length === 0 ? (
+                <span className="italic">Sin equipos</span>
+              ) : (
+                equipos
+                  .map((e) => `${e.cantidad} × ${e.nombre}`)
+                  .join(" · ")
+              )}
             </p>
           </div>
           <div className="text-right">
@@ -48,9 +73,9 @@ export function RentaListItem({
               <p className="text-xs font-medium text-amber-600 dark:text-amber-500">
                 Debe {pesos(t.saldo)}
               </p>
-            ) : (
+            ) : t.pagadoConfirmado >= t.total ? (
               <p className="text-xs text-muted-foreground">Pagado</p>
-            )}
+            ) : null}
           </div>
         </CardContent>
       </Card>
