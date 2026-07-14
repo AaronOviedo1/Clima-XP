@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { navParaRol } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
+// Cubre desde móvil hasta que HeaderNav tiene ancho de sobra (xl) para
+// mostrar todos los enlaces sin scroll.
 export function BottomNav({ esAdmin }: { esAdmin: boolean }) {
   const pathname = usePathname();
   const items = navParaRol(esAdmin);
 
   return (
-    <nav className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+    <nav className="sticky bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 xl:hidden">
       <ul className="flex items-stretch overflow-x-auto">
         {items.map(({ href, label, icon: Icon }) => {
           const activo =
