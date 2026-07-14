@@ -1,4 +1,4 @@
-import { MessageCircle, Route, Tags, Warehouse } from "lucide-react";
+import { Bell, MessageCircle, Route, Tags, Warehouse } from "lucide-react";
 import { datosConfiguracion } from "@/lib/configuracion";
 import {
   AgregarTarifaForm,
@@ -6,6 +6,7 @@ import {
   PreciosForm,
   TarifasForm,
 } from "@/components/configuracion-forms";
+import { NotificacionesBoton } from "@/components/push/notificaciones-boton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -81,6 +82,17 @@ export default async function ConfiguracionPage() {
       >
         <BodegaForm
           bodega={bodega ? { coords: bodega.coords, fuente: bodega.fuente } : null}
+        />
+      </Seccion>
+
+      <Seccion
+        titulo="Notificaciones"
+        descripcion="Avisos al celular: resumen de las entregas del día (7:00 am), rentas confirmadas, entregas marcadas y saldos por cobrar. Se activan por dispositivo; en iPhone hay que instalar la app en la pantalla de inicio."
+        icono={<Bell className="size-4" />}
+      >
+        <NotificacionesBoton
+          clavePublica={process.env.VAPID_PUBLIC_KEY ?? null}
+          mostrarSiempre
         />
       </Seccion>
 

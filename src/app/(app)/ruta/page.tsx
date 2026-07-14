@@ -29,7 +29,7 @@ export default async function RutaPage({
   const esAdmin = usuario.rol === "ADMIN";
 
   const [{ hoy, entregas }, bodegaInfo] = await Promise.all([
-    datosDelDia({ esAdmin, repartidorId: usuario.id, conSaldos: false, fecha }),
+    datosDelDia({ esAdmin, conSaldos: false, fecha }),
     obtenerBodega(),
   ]);
 
@@ -105,7 +105,7 @@ export default async function RutaPage({
                 </div>
                 <div className="min-w-0 flex-1">
                   <DashboardCard
-                    r={tarjetaDesdeRenta(r)}
+                    r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
                     mostrarSaldo={esAdmin}
                     contexto="entrega"
                     soloLectura={!esHoy}

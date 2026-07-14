@@ -1,3 +1,7 @@
 {
-  "regions": ["pdx1"]
+  "regions": ["pdx1"],
+  "crons": [
+    { "path": "/api/cron/resumen-del-dia", "schedule": "0 14 * * *" },
+    { "path": "/api/cron/saldos", "schedule": "0 15 * * 1" }
+  ]
 }

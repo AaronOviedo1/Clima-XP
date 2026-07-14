@@ -14,6 +14,10 @@ import {
 } from "@/lib/disponibilidad";
 import { sugerirCostoDomicilio, type SugerenciaDomicilio } from "@/lib/domicilio";
 import { esAdmin } from "@/lib/auth-guard";
+import { auth } from "@/auth";
+import { AUTH_HABILITADA } from "@/lib/auth-flag";
+import { avisar } from "@/lib/push";
+import { avisarEntregaMarcada, avisarRentaConfirmada } from "@/lib/avisos";
 import {
   TRANSICIONES,
   ESTADOS_EDITABLES,
@@ -295,6 +299,10 @@ export async function crearRenta(
 
     revalidatePath("/rentas");
     revalidatePath("/clientes");
+
+    // avisarRentaConfirmada solo avisa si la entrega es hoy o mañana.
+    if (d.estado === "CONFIRMADA") avisar(() => avisarRentaConfirmada(rentaId));
+
     return { ok: true, id: rentaId };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo crear la renta." };
@@ -418,6 +426,21 @@ export async function editarRenta(
 }
 
 // ---------- Flujo de estados ----------
+
+// Quién está marcando la entrega (para el aviso al admin, y para no avisarle a
+// sí mismo). Nunca lanza: un fallo aquí no debe tumbar el cambio de estado, que
+// ya está guardado.
+async function actorActual(): Promise<{ id: string; nombre: string } | null> {
+  if (!AUTH_HABILITADA) return null;
+  try {
+    const session = await auth();
+    const u = session?.user;
+    return u?.id ? { id: u.id, nombre: u.name ?? "alguien del equipo" } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function cambiarEstadoRenta(
   rentaId: string,
   nuevoEstado: EstadoRenta,
@@ -458,6 +481,16 @@ export async function cambiarEstadoRenta(
     revalidatePath("/rentas");
     revalidatePath(`/rentas/${rentaId}`);
     revalidatePath("/");
+
+    // Los avisos salen después de responder (avisar → after) y nunca propagan
+    // errores: si el push falla, el cambio de estado igual quedó guardado.
+    if (nuevoEstado === "CONFIRMADA") {
+      avisar(() => avisarRentaConfirmada(rentaId));
+    } else if (nuevoEstado === "ENTREGADA" || nuevoEstado === "RECOGIDA") {
+      const actor = await actorActual();
+      avisar(() => avisarEntregaMarcada(rentaId, nuevoEstado, actor));
+    }
+
     return { ok: true, id: rentaId };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo cambiar el estado." };
@@ -529,6 +562,10 @@ export async function marcarEntregada(
     revalidatePath("/rentas");
     revalidatePath(`/rentas/${rentaId}`);
     revalidatePath("/");
+
+    const actor = await actorActual();
+    avisar(() => avisarEntregaMarcada(rentaId, "ENTREGADA", actor));
+
     return { ok: true, id: rentaId };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo marcar como entregada." };

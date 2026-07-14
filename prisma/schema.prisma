@@ -74,13 +74,31 @@ enum EstadoTambo {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  nombre       String
-  email        String   @unique
-  passwordHash String
-  rol          Rol      @default(REPARTIDOR)
-  rentas       Renta[]  @relation("RepartidorRentas")
-  createdAt    DateTime @default(now())
+  id                String            @id @default(cuid())
+  nombre            String
+  email             String            @unique
+  passwordHash      String
+  rol               Rol               @default(REPARTIDOR)
+  rentas            Renta[]           @relation("RepartidorRentas")
+  suscripcionesPush SuscripcionPush[]
+  createdAt         DateTime          @default(now())
+}
+
+// Una fila por dispositivo (no por usuario): el mismo repartidor puede tener el
+// celular y la tablet. El endpoint identifica la suscripción y el push service
+// lo revoca (404/410) cuando muere; ahí se borra la fila.
+model SuscripcionPush {
+  id        String   @id @default(cuid())
+  userId    String
+  usuario   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  usadaEn   DateTime @default(now()) // último envío entregado
+
+  @@index([userId])
 }
 
 model Cliente {

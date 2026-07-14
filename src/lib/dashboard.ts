@@ -1,4 +1,3 @@
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   rentaListSelect,
@@ -27,8 +26,13 @@ export type TarjetaRenta = {
   saldo: number;
 };
 
-export function tarjetaDesdeRenta(renta: RentaTarjeta): TarjetaRenta {
-  const t = totalesDeRenta(renta);
+// `conDinero: false` deja los montos en cero: el DTO viaja al cliente, así que
+// esconderlos en la UI no basta — al repartidor no le llegan ni en el HTML.
+export function tarjetaDesdeRenta(
+  renta: RentaTarjeta,
+  opts: { conDinero: boolean }
+): TarjetaRenta {
+  const t = opts.conDinero ? totalesDeRenta(renta) : null;
   return {
     id: renta.id,
     estado: renta.estado as EstadoRentaStr,
@@ -39,12 +43,34 @@ export function tarjetaDesdeRenta(renta: RentaTarjeta): TarjetaRenta {
     lng: renta.lng,
     ventanaEntrega: renta.ventanaEntrega,
     codigos: renta.unidades.map((u) => u.unidad.codigo),
-    total: t.total,
-    saldo: t.saldo,
+    total: t?.total ?? 0,
+    saldo: t?.saldo ?? 0,
   };
 }
 
 export type RentaConSaldo = { renta: RentaLista; saldo: number; total: number };
+
+/**
+ * Rentas activas que todavía deben dinero. Solo para admin (el dashboard y el
+ * aviso de saldos la comparten). Se excluyen CONCLUIDA (ya cerradas), CANCELADA
+ * y COTIZADA (aún no es venta).
+ */
+export async function saldosPendientes(limite = 300): Promise<RentaConSaldo[]> {
+  const candidatas = await prisma.renta.findMany({
+    relationLoadStrategy: "join",
+    where: { estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA"] } },
+    select: rentaListSelect,
+    orderBy: { fechaInicio: "asc" },
+    take: limite,
+  });
+
+  return candidatas
+    .map((renta) => {
+      const t = totalesDeRenta(renta);
+      return { renta, saldo: t.saldo, total: t.total };
+    })
+    .filter((x) => x.saldo > 0);
+}
 
 export type DatosDelDia = {
   hoy: Date;
@@ -56,7 +82,6 @@ export type DatosDelDia = {
 
 export async function datosDelDia(opts: {
   esAdmin: boolean;
-  repartidorId?: string;
   conSaldos?: boolean; // /ruta lo apaga: no usa saldos
   fecha?: string; // "yyyy-mm-dd"; por defecto hoy (usado por /ruta para armar rutas de otros días)
 }): Promise<DatosDelDia> {
@@ -66,15 +91,13 @@ export async function datosDelDia(opts: {
   const hoy = fechaDesdeInput(hoyStr);
   const manana = fechaDesdeInput(mananaStr);
 
-  // El repartidor solo ve lo asignado a él.
-  const filtroRepartidor: Prisma.RentaWhereInput =
-    !opts.esAdmin && opts.repartidorId ? { repartidorId: opts.repartidorId } : {};
-
-  const [entregas, recolecciones, mananaRentas, candidatas] = await Promise.all([
+  // Todos ven las mismas rentas del día (no se asignan a un repartidor en
+  // particular). Lo que el repartidor no ve es el dinero: eso lo controla
+  // `conSaldos` aquí y `conDinero` en tarjetaDesdeRenta.
+  const [entregas, recolecciones, mananaRentas, saldos] = await Promise.all([
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
-        ...filtroRepartidor,
         fechaInicio: { equals: hoy },
         estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA", "CONCLUIDA"] },
       },
@@ -84,7 +107,6 @@ export async function datosDelDia(opts: {
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
-        ...filtroRepartidor,
         fechaFin: { equals: hoy },
         estado: { in: ["ENTREGADA", "RECOGIDA", "CONCLUIDA"] },
       },
@@ -94,24 +116,13 @@ export async function datosDelDia(opts: {
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
-        ...filtroRepartidor,
         fechaInicio: { equals: manana },
         estado: { in: ["COTIZADA", "CONFIRMADA"] },
       },
       select: rentaTarjetaSelect,
       orderBy: { createdAt: "asc" },
     }),
-    // Saldos pendientes (solo admin): rentas activas con saldo > 0.
-    // Se excluyen CONCLUIDA (ya pagadas/cerradas), CANCELADA y COTIZADA.
-    conSaldos
-      ? prisma.renta.findMany({
-          relationLoadStrategy: "join",
-          where: { estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA"] } },
-          select: rentaListSelect,
-          orderBy: { fechaInicio: "asc" },
-          take: 300,
-        })
-      : Promise.resolve([] as RentaLista[]),
+    conSaldos ? saldosPendientes() : Promise.resolve([] as RentaConSaldo[]),
   ]);
 
   // Pendientes primero, lo ya hecho al final (sort estable conserva createdAt).
@@ -125,13 +136,6 @@ export async function datosDelDia(opts: {
       Number(RECOLECCION_HECHA.includes(a.estado as EstadoRentaStr)) -
       Number(RECOLECCION_HECHA.includes(b.estado as EstadoRentaStr))
   );
-
-  const saldos: RentaConSaldo[] = candidatas
-    .map((renta) => {
-      const t = totalesDeRenta(renta);
-      return { renta, saldo: t.saldo, total: t.total };
-    })
-    .filter((x) => x.saldo > 0);
 
   return { hoy, entregas, recolecciones, manana: mananaRentas, saldos };
 }

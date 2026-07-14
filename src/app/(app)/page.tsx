@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCard } from "@/components/dashboard-card";
 import { RentaListItem } from "@/components/renta-list-item";
+import { NotificacionesBoton } from "@/components/push/notificaciones-boton";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,6 @@ export default async function DashboardPage() {
 
   const { hoy, entregas, recolecciones, manana, saldos } = await datosDelDia({
     esAdmin,
-    repartidorId: usuario.id,
   });
 
   const porCobrar = saldos.reduce((a, s) => a + s.saldo, 0);
@@ -61,6 +61,10 @@ export default async function DashboardPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Único punto que alcanzan los dos roles (/configuracion es solo admin).
+          Se esconde solo en cuanto quedan activadas. */}
+      <NotificacionesBoton clavePublica={process.env.VAPID_PUBLIC_KEY ?? null} />
 
       {/* KPIs */}
       <div className={"grid gap-2 " + (esAdmin ? "grid-cols-3" : "grid-cols-2")}>
@@ -100,7 +104,7 @@ export default async function DashboardPage() {
           {entregas.map((r) => (
             <DashboardCard
               key={r.id}
-              r={tarjetaDesdeRenta(r)}
+              r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
               mostrarSaldo={esAdmin}
               contexto="entrega"
             />
@@ -118,7 +122,7 @@ export default async function DashboardPage() {
           {recolecciones.map((r) => (
             <DashboardCard
               key={r.id}
-              r={tarjetaDesdeRenta(r)}
+              r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
               mostrarSaldo={esAdmin}
               contexto="recoleccion"
             />

@@ -13,9 +13,12 @@ export default AUTH_HABILITADA
 export const config = {
   // El matcher debe ser un literal estático para que Next lo analice en build.
   // Protege todo excepto assets estáticos y rutas internas de Next / API de auth.
-  // manifest.webmanifest se excluye a propósito: el navegador lo pide sin cookies,
-  // y si respondiera con el redirect al login la app dejaría de ser instalable.
+  // Tres exclusiones a propósito, todas por lo mismo (se piden sin cookies, y el
+  // redirect al login las rompería en silencio):
+  //   manifest.webmanifest → la app dejaría de ser instalable.
+  //   sw.js                → el navegador lo rechaza si le llega HTML del login.
+  //   api/cron             → Vercel los llama sin sesión; se autentican con CRON_SECRET.
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$).*)",
+    "/((?!api/auth|api/cron|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw\\.js|.*\\.png$).*)",
   ],
 };

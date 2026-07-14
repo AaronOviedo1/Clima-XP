@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
+import { RegistrarSW } from "@/components/push/registrar-sw";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 
 export default async function AppLayout({
@@ -26,6 +27,7 @@ export default async function AppLayout({
       </main>
       {modal}
       <BottomNav esAdmin={esAdmin} />
+      <RegistrarSW />
     </div>
   );
 }
