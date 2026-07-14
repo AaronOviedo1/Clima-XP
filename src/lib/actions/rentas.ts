@@ -7,9 +7,19 @@ import type { EstadoRenta } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fechaDesdeInput, diasDeRenta } from "@/lib/fechas";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
-import { unidadesDisponibles, unidadesNoDisponibles } from "@/lib/disponibilidad";
+import {
+  unidadesDisponibles,
+  unidadesNoDisponibles,
+  ESTADOS_ACTIVOS,
+} from "@/lib/disponibilidad";
 import { sugerirCostoDomicilio, type SugerenciaDomicilio } from "@/lib/domicilio";
-import { TRANSICIONES } from "@/lib/rentas";
+import { esAdmin } from "@/lib/auth-guard";
+import {
+  TRANSICIONES,
+  ESTADOS_EDITABLES,
+  ESTADOS_CERRADOS,
+  UNIDADES_BLOQUEADAS,
+} from "@/lib/rentas";
 import {
   parseCoordenadas,
   esLinkCortoMaps,
@@ -181,9 +191,6 @@ const crearSchema = z.object({
   costoDomicilio: z.number().int().nonnegative().default(0),
   domicilioSobrescrito: z.boolean().default(false),
   unidadIds: z.array(z.string().min(1)).min(1, "Selecciona al menos una unidad"),
-  accesorios: z
-    .array(z.object({ accesorioId: z.string().min(1), cargo: z.number().int().nonnegative() }))
-    .default([]),
   descuentoMonto: z.number().int().nonnegative().default(0),
   descuentoNota: z.string().trim().optional().nullable(),
   requiereFactura: z.boolean().default(false),
@@ -236,12 +243,12 @@ export async function crearRenta(
         precioDia3Mas: u.modelo.precioDia3Mas,
       }));
 
-      const cargosAccesorios = d.accesorios.reduce((acc, a) => acc + a.cargo, 0);
+      // Los accesorios se capturan hasta la entrega (marcarEntregada), sin costo.
       const calc = calcularRenta({
         unidades: unidadesCalc,
         dias: diasDeRenta(inicio, fin),
         costoDomicilio: d.costoDomicilio,
-        cargosAccesorios,
+        cargosAccesorios: 0,
         descuentoMonto: d.descuentoMonto,
       });
       const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
@@ -271,12 +278,6 @@ export async function crearRenta(
               precioDia: precioPorUnidad.get(u.id) ?? u.modelo.precioDia,
             })),
           },
-          accesorios: {
-            create: d.accesorios.map((a) => ({
-              accesorioId: a.accesorioId,
-              cargo: a.cargo,
-            })),
-          },
           pagos: d.anticipo
             ? {
                 create: {
@@ -297,6 +298,122 @@ export async function crearRenta(
     return { ok: true, id: rentaId };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo crear la renta." };
+  }
+}
+
+// ---------- Editar renta ----------
+// Reglas de qué se puede editar: ver ESTADOS_EDITABLES / UNIDADES_BLOQUEADAS en lib/rentas.
+const editarSchema = crearSchema.omit({ estado: true, anticipo: true });
+export type EditarRentaInput = z.input<typeof editarSchema>;
+
+export async function editarRenta(
+  rentaId: string,
+  input: EditarRentaInput,
+): Promise<RentaActionResult> {
+  const parsed = editarSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const d = parsed.data;
+  const inicio = fechaDesdeInput(d.fechaInicio);
+  const fin = fechaDesdeInput(d.fechaFin);
+  if (fin < inicio) return { error: "La fecha de recolección no puede ser antes de la entrega." };
+  if (d.descuentoMonto > 0 && !d.descuentoNota) {
+    return { error: "Todo descuento requiere una nota con el motivo." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const renta = await tx.renta.findUnique({
+        where: { id: rentaId },
+        include: { unidades: true },
+      });
+      if (!renta) throw new Error("Renta no encontrada.");
+      if (!ESTADOS_EDITABLES.includes(renta.estado)) {
+        throw new Error(`No se puede editar una renta ${renta.estado.toLowerCase()}.`);
+      }
+
+      const actuales = renta.unidades.map((u) => u.unidadId).sort();
+      const nuevasIds = [...d.unidadIds].sort();
+      const mismasUnidades =
+        actuales.length === nuevasIds.length && actuales.every((v, i) => v === nuevasIds[i]);
+      if (UNIDADES_BLOQUEADAS.includes(renta.estado) && !mismasUnidades) {
+        throw new Error(
+          "Con el equipo ya entregado las unidades no se cambian; solo fechas, datos y cargos.",
+        );
+      }
+
+      // Revalidar disponibilidad para el nuevo rango, ignorando esta renta.
+      // Las rentas cerradas no apartan inventario: revalidarlas rechazaría
+      // correcciones al histórico sin que exista conflicto real.
+      if (!ESTADOS_CERRADOS.includes(renta.estado)) {
+        const ocupadas = await unidadesNoDisponibles(d.unidadIds, inicio, fin, rentaId, tx);
+        if (ocupadas.length > 0) {
+          throw new Error(
+            `Ya no están disponibles: ${ocupadas.join(", ")}. Actualiza la selección.`,
+          );
+        }
+      }
+
+      const unidades = await tx.unidad.findMany({
+        where: { id: { in: d.unidadIds } },
+        include: { modelo: true },
+      });
+      const unidadesCalc: UnidadCalc[] = unidades.map((u) => ({
+        id: u.id,
+        tipo: u.modelo.tipo,
+        precioDia: u.modelo.precioDia,
+        precioDia3Mas: u.modelo.precioDia3Mas,
+      }));
+      // Los accesorios se capturan hasta la entrega (marcarEntregada), sin costo.
+      const calc = calcularRenta({
+        unidades: unidadesCalc,
+        dias: diasDeRenta(inicio, fin),
+        costoDomicilio: d.costoDomicilio,
+        cargosAccesorios: 0,
+        descuentoMonto: d.descuentoMonto,
+      });
+      const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
+
+      // Reemplazar unidades con los snapshots recalculados (el total que se ve
+      // en el formulario es el que queda guardado). Los accesorios no se tocan
+      // aquí: se capturan al marcar la renta como entregada.
+      await tx.rentaUnidad.deleteMany({ where: { rentaId } });
+      await tx.renta.update({
+        where: { id: rentaId },
+        data: {
+          clienteId: d.clienteId,
+          fechaInicio: inicio,
+          fechaFin: fin,
+          ventanaEntrega: d.ventanaEntrega || null,
+          direccion: d.direccion,
+          codigoAcceso: d.codigoAcceso || null,
+          lat: d.lat ?? null,
+          lng: d.lng ?? null,
+          linkMaps: d.linkMaps || null,
+          distanciaKm: d.distanciaKm ?? null,
+          costoDomicilio: d.costoDomicilio,
+          domicilioSobrescrito: d.domicilioSobrescrito,
+          descuentoMonto: d.descuentoMonto,
+          descuentoNota: d.descuentoNota || null,
+          requiereFactura: d.requiereFactura,
+          notas: d.notas || null,
+          unidades: {
+            create: unidades.map((u) => ({
+              unidadId: u.id,
+              precioDia: precioPorUnidad.get(u.id) ?? u.modelo.precioDia,
+            })),
+          },
+        },
+      });
+    });
+
+    revalidatePath("/rentas");
+    revalidatePath(`/rentas/${rentaId}`);
+    revalidatePath("/");
+    return { ok: true, id: rentaId };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo editar la renta." };
   }
 }
 
@@ -347,6 +464,138 @@ export async function cambiarEstadoRenta(
   }
 }
 
+// Qué accesorios aplican a cada tipo de equipo (mismo mapeo que antes vivía
+// en el formulario de renta).
+const TIPO_ACCESORIO_POR_EQUIPO: Record<string, ("MANGUERA" | "EXTENSION" | "TAMBO_GAS")[]> = {
+  AEROCOOLER: ["MANGUERA", "EXTENSION"],
+  CALENTON: ["TAMBO_GAS"],
+};
+
+export type AccesorioOpcion = {
+  id: string;
+  descripcion: string;
+  tipo: string;
+  codigo: string | null;
+};
+
+// Catálogo de accesorios aplicable a los tipos de equipo dados (para el
+// diálogo de "marcar entregado").
+export async function accesoriosParaEquipos(tipos: string[]): Promise<AccesorioOpcion[]> {
+  const tiposAccesorio = [...new Set(tipos.flatMap((t) => TIPO_ACCESORIO_POR_EQUIPO[t] ?? []))];
+  if (tiposAccesorio.length === 0) return [];
+  return prisma.accesorio.findMany({
+    where: { tipo: { in: tiposAccesorio } },
+    select: { id: true, descripcion: true, tipo: true, codigo: true },
+    orderBy: [{ tipo: "asc" }, { codigo: "asc" }],
+  });
+}
+
+// Marca la renta como ENTREGADA y registra qué accesorios salieron con el
+// equipo: esa información solo se sabe al entregar, no antes, y no tiene
+// costo (a diferencia del histórico migrado, donde el gas sí se cobraba).
+export async function marcarEntregada(
+  rentaId: string,
+  accesorioIds: string[],
+): Promise<RentaActionResult> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const renta = await tx.renta.findUnique({
+        where: { id: rentaId },
+        include: { unidades: true },
+      });
+      if (!renta) throw new Error("Renta no encontrada.");
+      if (!TRANSICIONES[renta.estado].includes("ENTREGADA")) {
+        throw new Error(`No se puede pasar de ${renta.estado} a ENTREGADA.`);
+      }
+
+      const unidadIds = renta.unidades.map((u) => u.unidadId);
+      if (unidadIds.length) {
+        await tx.unidad.updateMany({
+          where: { id: { in: unidadIds } },
+          data: { estado: "RENTADA" },
+        });
+      }
+
+      await tx.rentaAccesorio.deleteMany({ where: { rentaId } });
+      if (accesorioIds.length) {
+        await tx.rentaAccesorio.createMany({
+          data: accesorioIds.map((accesorioId) => ({ rentaId, accesorioId, cargo: 0 })),
+        });
+      }
+
+      await tx.renta.update({ where: { id: rentaId }, data: { estado: "ENTREGADA" } });
+    });
+
+    revalidatePath("/rentas");
+    revalidatePath(`/rentas/${rentaId}`);
+    revalidatePath("/");
+    return { ok: true, id: rentaId };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo marcar como entregada." };
+  }
+}
+
+// Corrección de estado (solo admin): salta el flujo normal (TRANSICIONES) para
+// arreglar errores de captura, p. ej. una renta marcada CONCLUIDA que en
+// realidad sigue CONFIRMADA. Si el nuevo estado vuelve a ocupar inventario
+// (activo) y el actual no lo hacía, revalida que las unidades sigan libres en
+// esas fechas para no crear un doble apartado silencioso.
+export async function corregirEstadoRenta(
+  rentaId: string,
+  nuevoEstado: EstadoRenta,
+): Promise<RentaActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo el administrador puede corregir el estado." };
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const renta = await tx.renta.findUnique({
+        where: { id: rentaId },
+        include: { unidades: true },
+      });
+      if (!renta) throw new Error("Renta no encontrada.");
+      if (renta.estado === nuevoEstado) return;
+
+      const unidadIds = renta.unidades.map((u) => u.unidadId);
+      const eraActivo = ESTADOS_ACTIVOS.includes(renta.estado as (typeof ESTADOS_ACTIVOS)[number]);
+      const seraActivo = ESTADOS_ACTIVOS.includes(nuevoEstado as (typeof ESTADOS_ACTIVOS)[number]);
+
+      if (seraActivo && !eraActivo && unidadIds.length) {
+        const ocupadas = await unidadesNoDisponibles(
+          unidadIds,
+          renta.fechaInicio,
+          renta.fechaFin,
+          rentaId,
+          tx,
+        );
+        if (ocupadas.length > 0) {
+          throw new Error(
+            `No se puede corregir: ${ocupadas.join(", ")} ya está(n) ocupada(s) en esas fechas.`,
+          );
+        }
+      }
+
+      // Reflejar el estado físico del equipo: solo ENTREGADA lo deja "en la
+      // calle"; cualquier otra corrección lo regresa a disponible.
+      if (unidadIds.length) {
+        await tx.unidad.updateMany({
+          where: { id: { in: unidadIds } },
+          data: { estado: nuevoEstado === "ENTREGADA" ? "RENTADA" : "DISPONIBLE" },
+        });
+      }
+
+      await tx.renta.update({ where: { id: rentaId }, data: { estado: nuevoEstado } });
+    });
+
+    revalidatePath("/rentas");
+    revalidatePath(`/rentas/${rentaId}`);
+    revalidatePath("/");
+    return { ok: true, id: rentaId };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo corregir el estado." };
+  }
+}
+
 // ---------- Pagos ----------
 const pagoSchema = z.object({
   monto: z.number().int().positive("El monto debe ser mayor a 0"),
@@ -377,5 +626,25 @@ export async function registrarPago(
 
   revalidatePath(`/rentas/${rentaId}`);
   revalidatePath("/rentas");
+  return { ok: true, id: rentaId };
+}
+
+// Corrige un pago capturado por error (solo admin): p. ej. se marcó una
+// liquidación que en realidad nunca se cobró.
+export async function eliminarPago(
+  rentaId: string,
+  pagoId: string,
+): Promise<RentaActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo el administrador puede eliminar un pago." };
+  }
+  const pago = await prisma.pago.findUnique({ where: { id: pagoId } });
+  if (!pago || pago.rentaId !== rentaId) return { error: "Pago no encontrado." };
+
+  await prisma.pago.delete({ where: { id: pagoId } });
+
+  revalidatePath(`/rentas/${rentaId}`);
+  revalidatePath("/rentas");
+  revalidatePath("/");
   return { ok: true, id: rentaId };
 }

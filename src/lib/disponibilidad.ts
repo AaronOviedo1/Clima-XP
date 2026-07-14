@@ -1,18 +1,37 @@
 import type { Prisma } from "@prisma/client";
+import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 
 // Estados que ocupan una unidad para su rango de fechas.
 export const ESTADOS_ACTIVOS = ["CONFIRMADA", "EN_RUTA", "ENTREGADA"] as const;
+
+/**
+ * Condición de traslape contra el rango [inicio, fin) de una renta nueva.
+ * La ocupación es fin-exclusiva: el día de recolección (fechaFin) la unidad
+ * ya cuenta como libre para otra entrega. Una renta con entrega y recolección
+ * el mismo día ocupa ese único día.
+ */
+function condicionTraslape(inicio: Date, fin: Date) {
+  // Rango de un solo día: tratarlo como [inicio, inicio + 1).
+  const finExclusivo = fin > inicio ? fin : addDays(inicio, 1);
+  return {
+    fechaInicio: { lt: finExclusivo },
+    OR: [
+      { fechaFin: { gt: inicio } },
+      // Renta existente de un solo día que cae justo en el día de inicio.
+      { fechaInicio: { gte: inicio }, fechaFin: { lte: inicio } },
+    ],
+  };
+}
 
 export type UnidadDisponible = Prisma.UnidadGetPayload<{
   include: { modelo: true };
 }>;
 
 /**
- * Unidades disponibles para el rango [inicio, fin]:
+ * Unidades disponibles para el rango [inicio, fin):
  * - no en MANTENIMIENTO ni BAJA
- * - sin traslape con otra renta activa (regla del plan):
- *   existente.fechaInicio <= nueva.fechaFin  AND  existente.fechaFin >= nueva.fechaInicio
+ * - sin traslape con otra renta activa (ver condicionTraslape)
  *
  * `excluirRentaId` ignora la propia renta al editar.
  */
@@ -29,8 +48,7 @@ export async function unidadesDisponibles(
           renta: {
             estado: { in: [...ESTADOS_ACTIVOS] },
             ...(excluirRentaId ? { id: { not: excluirRentaId } } : {}),
-            fechaInicio: { lte: fin },
-            fechaFin: { gte: inicio },
+            ...condicionTraslape(inicio, fin),
           },
         },
       },
@@ -63,8 +81,7 @@ export async function unidadesNoDisponibles(
               renta: {
                 estado: { in: [...ESTADOS_ACTIVOS] },
                 ...(excluirRentaId ? { id: { not: excluirRentaId } } : {}),
-                fechaInicio: { lte: fin },
-                fechaFin: { gte: inicio },
+                ...condicionTraslape(inicio, fin),
               },
             },
           },
