@@ -1,6 +1,29 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { rentaInclude, totalesDeRenta } from "@/lib/rentas";
+import { totalesDeRenta } from "@/lib/rentas";
 import { diasDeRenta } from "@/lib/fechas";
+
+// Solo los campos que consume la agregación: el reporte recorre todo el
+// histórico y con el include completo el payload crece sin límite.
+const reporteSelect = {
+  id: true,
+  estado: true,
+  clienteId: true,
+  fechaInicio: true,
+  fechaFin: true,
+  costoDomicilio: true,
+  descuentoMonto: true,
+  distanciaKm: true,
+  cliente: { select: { nombre: true } },
+  unidades: {
+    select: {
+      precioDia: true,
+      unidad: { select: { codigo: true, modelo: { select: { tipo: true } } } },
+    },
+  },
+  accesorios: { select: { cargo: true } },
+  pagos: { select: { monto: true, tipo: true, pagado: true, metodo: true } },
+} satisfies Prisma.RentaSelect;
 
 // Nota: los pagos históricos migrados tienen fecha = fecha de migración, así que
 // para agrupar por periodo se usa renta.fechaInicio (la fecha real del servicio).
@@ -34,8 +57,9 @@ export type Reportes = {
 
 export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes> {
   const rentas = await prisma.renta.findMany({
+    relationLoadStrategy: "join", // 1 solo round-trip a la BD remota
     where: { estado: { in: [...ESTADOS_NEGOCIO] } },
-    include: rentaInclude,
+    select: reporteSelect,
     orderBy: { fechaInicio: "asc" },
   });
 
