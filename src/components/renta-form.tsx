@@ -8,15 +8,20 @@ import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import {
   crearRenta,
+  editarRenta,
   sugerirDomicilio,
   ubicarCompleto,
   unidadesParaFechas,
+  type UbicacionCompleta,
   type UnidadOpcion,
 } from "@/lib/actions/rentas";
 import { linkMapsPunto } from "@/lib/maps";
+import { esLinkCortoMaps, esUrl, parseCoordenadas } from "@/lib/coordenadas";
+import { ESTADOS_CERRADOS, type EstadoRentaStr } from "@/lib/rentas";
 import { calcularRenta } from "@/lib/renta-calculo";
 import { diasDeRenta, fechaDesdeInput } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,30 +37,16 @@ import {
 } from "@/components/ui/popover";
 import { ClienteRapidoDialog } from "@/components/cliente-rapido-dialog";
 import {
+  ClienteCombobox,
+  type ClienteOpcion,
+} from "@/components/cliente-combobox";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-type ClienteOpcion = { id: string; nombre: string };
-type AccesorioOpcion = {
-  id: string;
-  descripcion: string;
-  tipo: string;
-  codigo: string | null;
-};
-
-// Qué accesorios aplican a cada tipo de equipo.
-const TIPO_ACCESORIO_INFO: Record<
-  string,
-  { titulo: string; equipo: "AEROCOOLER" | "CALENTON" }
-> = {
-  MANGUERA: { titulo: "Mangueras", equipo: "AEROCOOLER" },
-  EXTENSION: { titulo: "Extensiones", equipo: "AEROCOOLER" },
-  TAMBO_GAS: { titulo: "Tambos de gas", equipo: "CALENTON" },
-};
 
 const METODOS = [
   { v: "EFECTIVO", l: "Efectivo" },
@@ -64,76 +55,145 @@ const METODOS = [
   { v: "OTRO", l: "Otro" },
 ];
 
-function cargoPorDefecto(tipo: string): number {
-  return tipo === "TAMBO_GAS" ? 200 : 0;
-}
-
 // El calendario trabaja con Date locales; las fechas del formulario son "yyyy-MM-dd".
 function fechaLocalDesdeInput(yyyyMmDd: string): Date {
   const [y, m, d] = yyyyMmDd.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
+// Valores iniciales cuando el formulario edita una renta existente.
+export type RentaEdicion = {
+  rentaId: string;
+  estado: string;
+  // Con el equipo ya entregado (EN_RUTA en adelante) no se cambian unidades.
+  bloquearUnidades: boolean;
+  iniciales: {
+    clienteId: string;
+    ventanaEntrega: string;
+    direccion: string;
+    codigoAcceso: string;
+    ubicacionTexto: string;
+    lat: number | null;
+    lng: number | null;
+    linkMaps: string | null;
+    distanciaKm: string;
+    costoDomicilio: number;
+    domicilioSobrescrito: boolean;
+    unidadIds: string[];
+    descuentoMonto: number;
+    descuentoNota: string;
+    requiereFactura: boolean;
+    notas: string;
+  };
+};
+
+// Identifica de forma única lo que se le pidió resolver a Google Maps.
+function claveUbicacion(ubicacion: string, direccion: string): string {
+  return `${ubicacion.trim()}|${direccion.trim()}`;
+}
+
+// ¿Lo pegado trae un link de Maps o coordenadas? Se usa para decidir si vale la
+// pena ubicar en el acto o esperar a que salgan del campo.
+function pareceUbicacion(texto: string): boolean {
+  return esUrl(texto) || esLinkCortoMaps(texto) || parseCoordenadas(texto) != null;
+}
+
+// Valor que tendría el campo después de pegar, para poder ubicar en el acto sin
+// esperar al re-render (el state todavía no refleja el pegado). Respeta la
+// selección: pegar sobre texto seleccionado lo reemplaza, igual que el default.
+function valorAlPegar(
+  e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+): string | null {
+  const pegado = e.clipboardData.getData("text");
+  if (!pegado.trim()) return null;
+  const el = e.currentTarget;
+  const desde = el.selectionStart ?? el.value.length;
+  const hasta = el.selectionEnd ?? el.value.length;
+  e.preventDefault();
+  return el.value.slice(0, desde) + pegado + el.value.slice(hasta);
+}
+
 export function RentaForm({
   clientes: clientesIniciales,
-  accesorios,
   unidadesIniciales,
   fechasIniciales,
   clientePreseleccionado,
+  edicion,
+  enModal = false,
 }: {
   clientes: ClienteOpcion[];
-  accesorios: AccesorioOpcion[];
   unidadesIniciales: UnidadOpcion[];
   fechasIniciales: { inicio: string; fin: string };
   clientePreseleccionado?: string;
+  edicion?: RentaEdicion;
+  enModal?: boolean;
 }) {
   const router = useRouter();
+  const ini = edicion?.iniciales;
   const [pendingSubmit, startSubmit] = useTransition();
   const [cargandoUnidades, startCargarUnidades] = useTransition();
 
   const [clientes, setClientes] = useState<ClienteOpcion[]>(clientesIniciales);
-  const [clienteId, setClienteId] = useState(clientePreseleccionado ?? "");
+  const [clienteId, setClienteId] = useState(
+    clientePreseleccionado ?? ini?.clienteId ?? "",
+  );
   const [estado, setEstado] = useState<"COTIZADA" | "CONFIRMADA">("CONFIRMADA");
   const [fechaInicio, setFechaInicio] = useState(fechasIniciales.inicio);
   const [fechaFin, setFechaFin] = useState(fechasIniciales.fin);
   const [calAbierto, setCalAbierto] = useState(false);
+  // Selección del calendario en curso (independiente de las fechas ya guardadas):
+  // se reinicia cada vez que se abre, para que el primer toque siempre empiece
+  // una fecha nueva en vez de extender el rango previo (lo que hacía confuso
+  // elegir una fecha lejana, como "arrastrar" desde la selección anterior).
+  const [rangoCal, setRangoCal] = useState<DateRange | undefined>(undefined);
 
   const [unidades, setUnidades] = useState<UnidadOpcion[]>(unidadesIniciales);
-  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [sel, setSel] = useState<Set<string>>(new Set(ini?.unidadIds ?? []));
 
-  const [direccion, setDireccion] = useState("");
-  const [ventanaEntrega, setVentanaEntrega] = useState("");
-  const [codigoAcceso, setCodigoAcceso] = useState("");
+  const [direccion, setDireccion] = useState(ini?.direccion ?? "");
+  const [ventanaEntrega, setVentanaEntrega] = useState(ini?.ventanaEntrega ?? "");
+  // Al editar, refleja si de verdad no se había especificado; al crear, se deja
+  // libre para escribir (recién ahí se decide si se especifica o no).
+  const [sinVentana, setSinVentana] = useState(edicion ? !ini?.ventanaEntrega : false);
+  const [codigoAcceso, setCodigoAcceso] = useState(ini?.codigoAcceso ?? "");
 
-  const [ubicacionTexto, setUbicacionTexto] = useState("");
-  const [lat, setLat] = useState<number | null>(null);
-  const [lng, setLng] = useState<number | null>(null);
-  const [linkMaps, setLinkMaps] = useState<string | null>(null);
+  const [ubicacionTexto, setUbicacionTexto] = useState(ini?.ubicacionTexto ?? "");
+  const [lat, setLat] = useState<number | null>(ini?.lat ?? null);
+  const [lng, setLng] = useState<number | null>(ini?.lng ?? null);
+  const [linkMaps, setLinkMaps] = useState<string | null>(ini?.linkMaps ?? null);
   const [ubicacionMsg, setUbicacionMsg] = useState<string | null>(null);
   const [ubicando, startUbicar] = useTransition();
+  // Última combinación dirección + ubicación ya resuelta, para no repetir la
+  // llamada a Google Maps en cada blur. Al editar, lo que viene de la BD ya
+  // está resuelto.
+  const [ubicadoPara, setUbicadoPara] = useState<string | null>(
+    ini && (ini.lat != null || ini.distanciaKm)
+      ? claveUbicacion(ini.ubicacionTexto, ini.direccion)
+      : null,
+  );
 
-  const [distanciaKm, setDistanciaKm] = useState("");
-  const [costoDomicilio, setCostoDomicilio] = useState(0);
-  const [domicilioSobrescrito, setDomicilioSobrescrito] = useState(false);
+  const [distanciaKm, setDistanciaKm] = useState(ini?.distanciaKm ?? "");
+  const [costoDomicilio, setCostoDomicilio] = useState(ini?.costoDomicilio ?? 0);
+  const [domicilioSobrescrito, setDomicilioSobrescrito] = useState(
+    ini?.domicilioSobrescrito ?? false,
+  );
   const [notaDomicilio, setNotaDomicilio] = useState("");
 
-  const [accCargos, setAccCargos] = useState<Map<string, number>>(new Map());
-
-  const [descuentoMonto, setDescuentoMonto] = useState(0);
-  const [descuentoNota, setDescuentoNota] = useState("");
-  const [requiereFactura, setRequiereFactura] = useState(false);
+  const [descuentoMonto, setDescuentoMonto] = useState(ini?.descuentoMonto ?? 0);
+  const [descuentoNota, setDescuentoNota] = useState(ini?.descuentoNota ?? "");
+  const [requiereFactura, setRequiereFactura] = useState(ini?.requiereFactura ?? false);
 
   const [anticipoMonto, setAnticipoMonto] = useState(0);
   const [anticipoMetodo, setAnticipoMetodo] = useState("EFECTIVO");
 
-  const [notas, setNotas] = useState("");
+  const [notas, setNotas] = useState(ini?.notas ?? "");
   const [error, setError] = useState<string | null>(null);
 
   // Recargar unidades disponibles al cambiar las fechas.
   function recargarUnidades(inicio: string, fin: string) {
     if (fechaDesdeInput(fin) < fechaDesdeInput(inicio)) return;
     startCargarUnidades(async () => {
-      const nuevas = await unidadesParaFechas(inicio, fin);
+      const nuevas = await unidadesParaFechas(inicio, fin, edicion?.rentaId);
       setUnidades(nuevas);
       // Podar selección a las que siguen disponibles.
       setSel((prev) => {
@@ -143,7 +203,28 @@ export function RentaForm({
     });
   }
 
+  // Flujo de dos toques, siempre desde cero: el primero fija la entrega, el
+  // segundo la recolección (tocar la misma fecha dos veces = renta de un día).
+  function seleccionarDia(dia: Date) {
+    if (!rangoCal?.from || rangoCal.to) {
+      setRangoCal({ from: dia, to: undefined });
+      return;
+    }
+    const inicioEnCurso = rangoCal.from;
+    const from = dia < inicioEnCurso ? dia : inicioEnCurso;
+    const to = dia < inicioEnCurso ? inicioEnCurso : dia;
+    setRangoCal({ from, to });
+
+    const inicio = format(from, "yyyy-MM-dd");
+    const fin = format(to, "yyyy-MM-dd");
+    setFechaInicio(inicio);
+    setFechaFin(fin);
+    recargarUnidades(inicio, fin);
+    setCalAbierto(false);
+  }
+
   function toggleUnidad(id: string) {
+    if (edicion?.bloquearUnidades) return;
     setSel((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -152,48 +233,59 @@ export function RentaForm({
     });
   }
 
-  function toggleAccesorio(a: AccesorioOpcion) {
-    setAccCargos((prev) => {
-      const next = new Map(prev);
-      if (next.has(a.id)) next.delete(a.id);
-      else next.set(a.id, cargoPorDefecto(a.tipo));
-      return next;
-    });
+  // Aplica el resultado de ubicarCompleto al estado del formulario y devuelve
+  // los valores ya resueltos (setState es asíncrono; quien llama a veces los
+  // necesita de inmediato, p. ej. al guardar la renta).
+  function aplicarResultadoUbicacion(res: UbicacionCompleta) {
+    const nuevoLat = res.coords?.lat ?? null;
+    const nuevoLng = res.coords?.lng ?? null;
+    const nuevoLinkMaps = res.linkMaps ?? null;
+    const nuevaDistancia = res.km != null ? String(res.km) : distanciaKm;
+
+    setLat(nuevoLat);
+    setLng(nuevoLng);
+    setLinkMaps(nuevoLinkMaps);
+    if (res.km != null) setDistanciaKm(nuevaDistancia);
+
+    let nuevoCosto = costoDomicilio;
+    let nuevaNota = notaDomicilio;
+    if (res.sugerencia) {
+      if (domicilioSobrescrito) {
+        res.avisos.push(
+          `Sugerencia: ${pesos(res.sugerencia.costo)} (no aplicada, costo editado a mano)`,
+        );
+      } else {
+        nuevoCosto = res.sugerencia.costo;
+        nuevaNota = res.sugerencia.fueraDeRango
+          ? `Fuera de tabla — se usó tarifa de ${res.sugerencia.kmTarifa} km`
+          : `Tarifa de ${res.sugerencia.kmTarifa} km`;
+        setCostoDomicilio(nuevoCosto);
+        setNotaDomicilio(nuevaNota);
+      }
+    }
+
+    return {
+      lat: nuevoLat,
+      lng: nuevoLng,
+      linkMaps: nuevoLinkMaps,
+      distanciaKm: nuevaDistancia,
+      costoDomicilio: nuevoCosto,
+      notaDomicilio: nuevaNota,
+    };
   }
 
-  // Un solo tap: coords pegadas o geocoding de la dirección, distancia real
-  // desde la bodega (Distance Matrix) y costo de domicilio sugerido.
-  function onUbicar() {
-    if (!ubicacionTexto.trim() && !direccion.trim()) {
-      setUbicacionMsg("Escribe la dirección o pega un link/coordenadas primero.");
-      return;
-    }
+  // Coords pegadas o geocoding de la dirección, distancia real desde la bodega
+  // (Distance Matrix) y costo de domicilio sugerido.
+  // Recibe los valores por parámetro (no del state): al pegar hay que ubicar con
+  // el texto recién pegado, que todavía no pasó por el re-render.
+  function ejecutarUbicar(ubicacion: string, dir: string) {
     setUbicacionMsg(null);
+    // Se marca antes de la llamada: si no da resultado, tampoco se reintenta en
+    // cada blur (queda el botón "Ubicar" para forzarlo).
+    setUbicadoPara(claveUbicacion(ubicacion, dir));
     startUbicar(async () => {
-      const res = await ubicarCompleto({
-        ubicacion: ubicacionTexto,
-        direccion,
-      });
-
-      setLat(res.coords?.lat ?? null);
-      setLng(res.coords?.lng ?? null);
-      setLinkMaps(res.linkMaps ?? null);
-
-      if (res.km != null) setDistanciaKm(String(res.km));
-      if (res.sugerencia) {
-        if (domicilioSobrescrito) {
-          res.avisos.push(
-            `Sugerencia: ${pesos(res.sugerencia.costo)} (no aplicada, costo editado a mano)`,
-          );
-        } else {
-          setCostoDomicilio(res.sugerencia.costo);
-          setNotaDomicilio(
-            res.sugerencia.fueraDeRango
-              ? `Fuera de tabla — se usó tarifa de ${res.sugerencia.kmTarifa} km`
-              : `Tarifa de ${res.sugerencia.kmTarifa} km`,
-          );
-        }
-      }
+      const res = await ubicarCompleto({ ubicacion, direccion: dir });
+      aplicarResultadoUbicacion(res);
 
       const partes: string[] = [];
       if (res.coords) {
@@ -209,6 +301,43 @@ export function RentaForm({
           "No se detectaron coordenadas (se guardará el link/texto tal cual).",
       );
     });
+  }
+
+  // Botón "Ubicar": recalcula siempre, aunque ya se haya resuelto antes.
+  function onUbicar() {
+    if (!ubicacionTexto.trim() && !direccion.trim()) {
+      setUbicacionMsg("Escribe la dirección o pega un link/coordenadas primero.");
+      return;
+    }
+    ejecutarUbicar(ubicacionTexto, direccion);
+  }
+
+  // Se calcula sola: en el acto al pegar un link/coords, o al salir del campo si
+  // se escribió a mano. Así el km y el costo de domicilio ya están en el total
+  // antes de guardar.
+  function ubicarSiCambio(ubicacion: string, dir: string) {
+    if (!ubicacion.trim() && !dir.trim()) return;
+    if (claveUbicacion(ubicacion, dir) === ubicadoPara) return;
+    ejecutarUbicar(ubicacion, dir);
+  }
+
+  function onSalirDeUbicacion() {
+    if (ubicando) return;
+    ubicarSiCambio(ubicacionTexto, direccion);
+  }
+
+  // Si al guardar nadie disparó "Ubicar" todavía (ni manualmente ni en un
+  // intento previo), se calcula sola: la dirección ya es obligatoria, así que
+  // siempre hay algo con qué geocodificar.
+  async function calcularUbicacionSiFalta() {
+    if (lat != null || distanciaKm) {
+      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio };
+    }
+    if (!ubicacionTexto.trim() && !direccion.trim()) {
+      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio };
+    }
+    const res = await ubicarCompleto({ ubicacion: ubicacionTexto, direccion });
+    return aplicarResultadoUbicacion(res);
   }
 
   async function onSugerirDomicilio() {
@@ -230,41 +359,10 @@ export function RentaForm({
     () => unidades.filter((u) => sel.has(u.id)),
     [unidades, sel],
   );
-  // Accesorios visibles según el tipo de los equipos seleccionados.
-  const tiposEquipoSeleccionados = useMemo(
-    () => new Set(unidadesSeleccionadas.map((u) => u.tipo)),
-    [unidadesSeleccionadas],
-  );
-
-  const gruposAccesorios = useMemo(() => {
-    const map = new Map<string, AccesorioOpcion[]>();
-    for (const a of accesorios) {
-      const info = TIPO_ACCESORIO_INFO[a.tipo];
-      if (!info || !tiposEquipoSeleccionados.has(info.equipo)) continue;
-      const arr = map.get(a.tipo) ?? [];
-      arr.push(a);
-      map.set(a.tipo, arr);
-    }
-    return [...map.entries()];
-  }, [accesorios, tiposEquipoSeleccionados]);
-
-  // Solo cuentan los accesorios que aplican a los equipos seleccionados
-  // (si se deselecciona el último calentón, sus tambos dejan de cobrarse).
-  const accesoriosVisibles = useMemo(
-    () =>
-      new Set(gruposAccesorios.flatMap(([, items]) => items.map((a) => a.id))),
-    [gruposAccesorios],
-  );
-
-  const cargosAccesorios = useMemo(
-    () =>
-      [...accCargos]
-        .filter(([id]) => accesoriosVisibles.has(id))
-        .reduce((suma, [, cargo]) => suma + cargo, 0),
-    [accCargos, accesoriosVisibles],
-  );
   const dias = diasDeRenta(fechaDesdeInput(fechaInicio), fechaDesdeInput(fechaFin));
 
+  // Los accesorios (mangueras, extensiones, tambos) ya no se cotizan aquí: se
+  // saben hasta la entrega y no tienen costo (ver marcarEntregada en renta-acciones.tsx).
   const calc = useMemo(
     () =>
       calcularRenta({
@@ -276,10 +374,10 @@ export function RentaForm({
         })),
         dias,
         costoDomicilio,
-        cargosAccesorios,
+        cargosAccesorios: 0,
         descuentoMonto,
       }),
-    [unidadesSeleccionadas, dias, costoDomicilio, cargosAccesorios, descuentoMonto],
+    [unidadesSeleccionadas, dias, costoDomicilio, descuentoMonto],
   );
 
   // Agrupar unidades disponibles por modelo.
@@ -301,59 +399,62 @@ export function RentaForm({
     if (descuentoMonto > 0 && !descuentoNota.trim())
       return setError("El descuento requiere una nota con el motivo.");
 
-    const notaCompleta = [notaDomicilio, notas].filter(Boolean).join(" · ");
-
     startSubmit(async () => {
-      const res = await crearRenta({
+      // Calcula la distancia y el costo de domicilio sola si nadie tocó "Ubicar".
+      const ubic = await calcularUbicacionSiFalta();
+      const notaCompleta = [ubic.notaDomicilio, notas].filter(Boolean).join(" · ");
+
+      const base = {
         clienteId,
-        estado,
         fechaInicio,
         fechaFin,
         ventanaEntrega: ventanaEntrega || null,
         direccion,
         codigoAcceso: codigoAcceso || null,
-        lat,
-        lng,
-        linkMaps,
-        distanciaKm: distanciaKm ? parseFloat(distanciaKm) : null,
-        costoDomicilio,
+        lat: ubic.lat,
+        lng: ubic.lng,
+        linkMaps: ubic.linkMaps,
+        distanciaKm: ubic.distanciaKm ? parseFloat(ubic.distanciaKm) : null,
+        costoDomicilio: ubic.costoDomicilio,
         domicilioSobrescrito,
         unidadIds: [...sel],
-        accesorios: [...accCargos.entries()]
-          .filter(([accesorioId]) => accesoriosVisibles.has(accesorioId))
-          .map(([accesorioId, cargo]) => ({ accesorioId, cargo })),
         descuentoMonto,
         descuentoNota: descuentoNota || null,
         requiereFactura,
-        anticipo:
-          anticipoMonto > 0
-            ? { monto: anticipoMonto, metodo: anticipoMetodo as never }
-            : null,
         notas: notaCompleta || null,
-      });
+      };
+
+      const res = edicion
+        ? await editarRenta(edicion.rentaId, base)
+        : await crearRenta({
+            ...base,
+            estado,
+            anticipo:
+              anticipoMonto > 0
+                ? { monto: anticipoMonto, metodo: anticipoMetodo as never }
+                : null,
+          });
       if ("error" in res) setError(res.error);
-      else router.push(`/rentas/${res.id}`);
+      else if (enModal) {
+        // En pop-up: cerrarlo y volver a lo que estaba detrás (el detalle al
+        // editar, la lista al dar de alta), ya actualizado.
+        router.back();
+        router.refresh();
+      } else router.push(`/rentas/${res.id}`);
     });
   }
 
   return (
-    <div className="space-y-5 pb-28">
+    <div className={cn("space-y-5", !enModal && "pb-44 xl:pb-28")}>
       {/* Cliente */}
       <section className="space-y-2">
         <Label>Cliente</Label>
         <div className="flex gap-2">
-          <Select value={clienteId} onValueChange={setClienteId}>
-            <SelectTrigger className="h-11 w-full min-w-0 flex-1">
-              <SelectValue placeholder="Selecciona un cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clientes.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ClienteCombobox
+            clientes={clientes}
+            value={clienteId}
+            onChange={setClienteId}
+          />
           <ClienteRapidoDialog
             onCreado={(c) => {
               setClientes((prev) =>
@@ -372,7 +473,14 @@ export function RentaForm({
       {/* Fechas */}
       <section className="space-y-2">
         <Label>Fechas de renta</Label>
-        <Popover open={calAbierto} onOpenChange={setCalAbierto}>
+        <Popover
+          open={calAbierto}
+          onOpenChange={(open) => {
+            setCalAbierto(open);
+            // Reiniciar la selección en curso: cada apertura empieza de cero.
+            if (open) setRangoCal(undefined);
+          }}
+        >
           <PopoverTrigger asChild>
             <Button
               type="button"
@@ -388,27 +496,23 @@ export function RentaForm({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
+            <p className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+              {rangoCal?.from
+                ? "Toca la fecha de recolección (o la misma, para un solo día)."
+                : "Toca la fecha de entrega."}
+            </p>
             <Calendar
               mode="range"
               locale={es}
               numberOfMonths={1}
               defaultMonth={fechaLocalDesdeInput(fechaInicio)}
-              selected={{
-                from: fechaLocalDesdeInput(fechaInicio),
-                to: fechaLocalDesdeInput(fechaFin),
-              }}
-              onSelect={(rango: DateRange | undefined) => {
-                if (!rango?.from) return;
-                const inicio = format(rango.from, "yyyy-MM-dd");
-                const fin = format(rango.to ?? rango.from, "yyyy-MM-dd");
-                setFechaInicio(inicio);
-                setFechaFin(fin);
-                recargarUnidades(inicio, fin);
-                // Cerrar al completar el rango (dos días distintos).
-                if (rango.to && rango.to.getTime() !== rango.from.getTime()) {
-                  setCalAbierto(false);
+              selected={
+                rangoCal ?? {
+                  from: fechaLocalDesdeInput(fechaInicio),
+                  to: fechaLocalDesdeInput(fechaFin),
                 }
-              }}
+              }
+              onSelect={(_rango: DateRange | undefined, dia: Date) => seleccionarDia(dia)}
             />
           </PopoverContent>
         </Popover>
@@ -420,12 +524,26 @@ export function RentaForm({
       </section>
 
       <div className="space-y-2">
-        <Label htmlFor="ventana">Ventana de entrega</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="ventana">Ventana de entrega</Label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox
+              checked={sinVentana}
+              onCheckedChange={(v) => {
+                const marcado = v === true;
+                setSinVentana(marcado);
+                if (marcado) setVentanaEntrega("");
+              }}
+            />
+            No se especificó
+          </label>
+        </div>
         <Input
           id="ventana"
           value={ventanaEntrega}
           placeholder="11:00 a 3:00 PM"
           className="h-11"
+          disabled={sinVentana}
           onChange={(e) => setVentanaEntrega(e.target.value)}
         />
       </div>
@@ -440,6 +558,13 @@ export function RentaForm({
             {cargandoUnidades ? "Buscando…" : `${sel.size} seleccionados`}
           </span>
         </div>
+        {edicion?.bloquearUnidades && (
+          <p className="text-xs text-amber-600 dark:text-amber-500">
+            {ESTADOS_CERRADOS.includes(edicion.estado as EstadoRentaStr)
+              ? "Renta cerrada: las unidades quedan fijas; solo puedes corregir fechas, datos y cargos."
+              : "El equipo ya está en la calle: las unidades no se pueden cambiar, solo fechas y datos."}
+          </p>
+        )}
         {porModelo.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No hay unidades disponibles para esas fechas.
@@ -460,9 +585,10 @@ export function RentaForm({
                     <button
                       key={u.id}
                       type="button"
+                      disabled={edicion?.bloquearUnidades}
                       onClick={() => toggleUnidad(u.id)}
                       className={
-                        "rounded-md border px-3 py-2 text-sm font-medium transition-colors " +
+                        "rounded-md border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 " +
                         (activo
                           ? "border-primary bg-primary text-primary-foreground"
                           : "hover:bg-muted")
@@ -495,6 +621,15 @@ export function RentaForm({
             rows={2}
             placeholder="Calle, colonia, referencias… (o pega link/coords de Maps)"
             onChange={(e) => setDireccion(e.target.value)}
+            onBlur={onSalirDeUbicacion}
+            onPaste={(e) => {
+              const v = valorAlPegar(e);
+              if (v == null) return;
+              setDireccion(v);
+              // Solo si lo pegado trae un link/coords: pegar texto suelto de la
+              // dirección se resuelve al salir del campo, no en cada pegada.
+              if (pareceUbicacion(v)) ubicarSiCambio(ubicacionTexto, v);
+            }}
           />
         </div>
         <div className="space-y-2">
@@ -506,6 +641,13 @@ export function RentaForm({
               placeholder="maps.app.goo.gl/… o 29.10, -111.00"
               className="h-11"
               onChange={(e) => setUbicacionTexto(e.target.value)}
+              onBlur={onSalirDeUbicacion}
+              onPaste={(e) => {
+                const v = valorAlPegar(e);
+                if (v == null) return;
+                setUbicacionTexto(v);
+                ubicarSiCambio(v, direccion);
+              }}
             />
             <Button
               type="button"
@@ -518,8 +660,9 @@ export function RentaForm({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Con link/coords o solo con la dirección de arriba: calcula km desde la bodega y
-            sugiere el costo de domicilio.
+            {ubicando
+              ? "Calculando distancia desde la bodega…"
+              : "Pega el link de Maps o las coordenadas y los km y el costo de domicilio se calculan solos. Si escribes solo la dirección, se calculan al salir del campo. “Ubicar” recalcula."}
           </p>
           {ubicacionMsg && (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -588,84 +731,6 @@ export function RentaForm({
 
       <Separator />
 
-      {/* Accesorios */}
-      {accesorios.length > 0 && (
-        <section className="space-y-3">
-          <Label>Accesorios</Label>
-          {gruposAccesorios.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {sel.size === 0
-                ? "Selecciona equipos para ver sus accesorios."
-                : "No hay accesorios para los equipos seleccionados."}
-            </p>
-          ) : (
-            gruposAccesorios.map(([tipo, items]) => {
-              const seleccionados = items.filter((a) => accCargos.has(a.id));
-              const cargoGrupo = seleccionados.length
-                ? (accCargos.get(seleccionados[0].id) ?? 0)
-                : 0;
-              return (
-                <div key={tipo} className="space-y-1.5">
-                  <p className="text-sm font-medium">
-                    {TIPO_ACCESORIO_INFO[tipo].titulo}{" "}
-                    <span className="font-normal text-muted-foreground">
-                      · {seleccionados.length} de {items.length}
-                    </span>
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {items.map((a) => {
-                      const activo = accCargos.has(a.id);
-                      return (
-                        <button
-                          key={a.id}
-                          type="button"
-                          onClick={() => toggleAccesorio(a)}
-                          className={
-                            "rounded-md border px-3 py-2 text-sm font-medium transition-colors " +
-                            (activo
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "hover:bg-muted")
-                          }
-                        >
-                          {a.codigo ?? a.descripcion}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {seleccionados.length > 0 && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <span className="text-sm text-muted-foreground">
-                        Cargo c/u
-                      </span>
-                      <Input
-                        type="number"
-                        inputMode="numeric"
-                        value={cargoGrupo === 0 ? "" : cargoGrupo}
-                        placeholder="0"
-                        className="h-9 w-24"
-                        onChange={(e) => {
-                          const cargo = Math.max(0, parseInt(e.target.value) || 0);
-                          setAccCargos((prev) => {
-                            const next = new Map(prev);
-                            for (const s of seleccionados) next.set(s.id, cargo);
-                            return next;
-                          });
-                        }}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        = {pesos(cargoGrupo * seleccionados.length)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </section>
-      )}
-
-      <Separator />
-
       {/* Descuento + factura */}
       <section className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
@@ -701,34 +766,37 @@ export function RentaForm({
         </label>
       </section>
 
-      <Separator />
-
-      {/* Anticipo */}
-      <section className="space-y-2">
-        <Label>Anticipo (opcional)</Label>
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            type="number"
-            inputMode="numeric"
-            value={anticipoMonto === 0 ? "" : anticipoMonto}
-            placeholder="Monto"
-            className="h-11"
-            onChange={(e) => setAnticipoMonto(Math.max(0, parseInt(e.target.value) || 0))}
-          />
-          <Select value={anticipoMetodo} onValueChange={setAnticipoMetodo}>
-            <SelectTrigger className="h-11 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {METODOS.map((m) => (
-                <SelectItem key={m.v} value={m.v}>
-                  {m.l}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </section>
+      {/* Anticipo: solo al crear (los pagos se manejan en el detalle) */}
+      {!edicion && (
+        <>
+          <Separator />
+          <section className="space-y-2">
+            <Label>Anticipo (opcional)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={anticipoMonto === 0 ? "" : anticipoMonto}
+                placeholder="Monto"
+                className="h-11"
+                onChange={(e) => setAnticipoMonto(Math.max(0, parseInt(e.target.value) || 0))}
+              />
+              <Select value={anticipoMetodo} onValueChange={setAnticipoMetodo}>
+                <SelectTrigger className="h-11 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {METODOS.map((m) => (
+                    <SelectItem key={m.v} value={m.v}>
+                      {m.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+        </>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="notas">Notas</Label>
@@ -740,24 +808,37 @@ export function RentaForm({
         />
       </div>
 
-      {/* Estado inicial */}
-      <section className="space-y-2">
-        <Label>Estado inicial</Label>
-        <Select value={estado} onValueChange={(v) => setEstado(v as never)}>
-          <SelectTrigger className="h-11 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="CONFIRMADA">Confirmada (aparta equipo)</SelectItem>
-            <SelectItem value="COTIZADA">Cotizada (sin apartar)</SelectItem>
-          </SelectContent>
-        </Select>
-      </section>
+      {/* Estado inicial: solo al crear (en edición el estado se maneja en el detalle) */}
+      {!edicion && (
+        <section className="space-y-2">
+          <Label>Estado inicial</Label>
+          <Select value={estado} onValueChange={(v) => setEstado(v as never)}>
+            <SelectTrigger className="h-11 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="CONFIRMADA">Confirmada (aparta equipo)</SelectItem>
+              <SelectItem value="COTIZADA">Cotizada (sin apartar)</SelectItem>
+            </SelectContent>
+          </Select>
+        </section>
+      )}
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {/* Total fijo abajo */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur md:left-60">
+      {/* Total: fijo al fondo en pantalla completa (arriba del BottomNav
+          mientras esté visible, hasta xl), pegado al borde inferior del pop-up.
+          En el pop-up el DialogContent va con pb-0: si conservara su p-4, la
+          barra se quedaría flotando 16px arriba del borde (sticky no puede
+          salirse del bloque contenedor, que termina donde empieza el padding). */}
+      <div
+        className={cn(
+          "border-t bg-background/95 p-3 backdrop-blur",
+          enModal
+            ? "sticky bottom-0 -mx-4 px-4"
+            : "fixed inset-x-0 z-30 bottom-14 xl:bottom-0",
+        )}
+      >
         <div className="mx-auto flex max-w-3xl items-center gap-3 md:max-w-4xl">
           <Card className="flex-1">
             <CardContent className="flex items-center justify-between py-2">
@@ -773,7 +854,7 @@ export function RentaForm({
             onClick={onSubmit}
             disabled={pendingSubmit}
           >
-            {pendingSubmit ? "Guardando…" : "Crear renta"}
+            {pendingSubmit ? "Guardando…" : edicion ? "Guardar cambios" : "Crear renta"}
           </Button>
         </div>
       </div>
