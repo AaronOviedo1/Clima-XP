@@ -18,6 +18,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Climaxpress",
   description: "Administración de rentas de aerocoolers y calentones",
+  applicationName: "Climaxpress",
+  // iOS no lee el manifest: la pantalla completa (sin barras de Safari) y el
+  // nombre bajo el icono se piden aquí.
+  appleWebApp: {
+    capable: true,
+    title: "Climaxpress",
+    // El contenido se dibuja bajo la barra de estado, así el azul del header
+    // llega hasta arriba. El header compensa con padding de safe-area.
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -25,6 +35,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: "#152b47",
+  // Necesario para que env(safe-area-inset-*) valga algo en pantallas con notch.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

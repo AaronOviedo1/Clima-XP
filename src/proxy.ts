@@ -13,5 +13,9 @@ export default AUTH_HABILITADA
 export const config = {
   // El matcher debe ser un literal estático para que Next lo analice en build.
   // Protege todo excepto assets estáticos y rutas internas de Next / API de auth.
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$).*)"],
+  // manifest.webmanifest se excluye a propósito: el navegador lo pide sin cookies,
+  // y si respondiera con el redirect al login la app dejaría de ser instalable.
+  matcher: [
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$).*)",
+  ],
 };

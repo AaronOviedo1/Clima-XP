@@ -13,8 +13,10 @@ export function AppHeader({
   nombre: string;
   esAdmin: boolean;
 }) {
+  // Instalada como PWA el contenido corre bajo la barra de estado: el padding de
+  // arriba la libera y deja que el azul del header llegue al borde de la pantalla.
   return (
-    <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-white/10 bg-[#152b47]/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-[#152b47]/90">
+    <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-white/10 bg-[#152b47]/95 px-4 pt-[calc(--spacing(2)+env(safe-area-inset-top))] pb-2 backdrop-blur supports-[backdrop-filter]:bg-[#152b47]/90">
       <div className="flex shrink-0 items-center gap-2">
         <Image
           src="/logo-app.png"

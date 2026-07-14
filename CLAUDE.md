@@ -26,6 +26,9 @@ npm run db:generate  # regenerar cliente Prisma
 # Migración del Excel histórico (coloca el .xlsx en la raíz):
 npx tsx scripts/migrate-excel.ts            # dry-run: genera data/revision-migracion.csv
 npx tsx scripts/migrate-excel.ts --commit   # inserta (idempotente, usa DIRECT_URL)
+
+# Iconos de la PWA (regenerar si cambia public/HD_sinFondo.png):
+node scripts/generar-iconos.mjs
 ```
 
 ## Convenciones
@@ -61,6 +64,8 @@ prisma/
 ```
 
 Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mantenerse sincronizado con el flag `soloAdmin` en `src/lib/nav.ts`.
+
+**PWA**: `src/app/manifest.ts` (instalable, `display: standalone`) + iconos generados con `scripts/generar-iconos.mjs` a partir de `public/HD_sinFondo.png` — `src/app/icon.png` (favicon), `src/app/apple-icon.png` (iOS) y `public/icons/*` (192/512, con variantes `maskable` para el recorte de Android). El matcher de `src/proxy.ts` deja pasar `manifest.webmanifest` sin sesión: el navegador lo pide sin cookies y un redirect al login rompería la instalación.
 
 ## Estado de fases
 
