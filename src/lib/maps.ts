@@ -25,10 +25,10 @@ export function linksRuta(
   paradas: ParadaRuta[],
   origen?: ParadaRuta,
 ): string[] {
+  // Sin encodeURIComponent aquí: URLSearchParams ya codifica los valores
+  // (codificar antes produciría doble codificación y Maps mostraría "%20").
   const punto = (p: ParadaRuta) =>
-    p.lat != null && p.lng != null
-      ? `${p.lat},${p.lng}`
-      : encodeURIComponent(p.direccion);
+    p.lat != null && p.lng != null ? `${p.lat},${p.lng}` : p.direccion;
 
   const MAX = 10;
   const links: string[] = [];

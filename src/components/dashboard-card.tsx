@@ -3,22 +3,30 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, MessageCircle, Truck, PackageCheck, PackageOpen } from "lucide-react";
+import { MapPin, MessageCircle, Truck, PackageCheck, PackageOpen, CircleCheck } from "lucide-react";
 import { cambiarEstadoRenta } from "@/lib/actions/rentas";
 import type { TarjetaRenta } from "@/lib/dashboard";
-import type { EstadoRentaStr } from "@/lib/rentas";
+import { ENTREGA_HECHA, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
 import { linkMapsPunto } from "@/lib/maps";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function DashboardCard({
   r,
   mostrarSaldo = true,
+  contexto,
+  soloLectura = false,
 }: {
   r: TarjetaRenta;
   mostrarSaldo?: boolean;
+  // En qué sección vive la tarjeta: define cuándo se considera "hecha".
+  contexto?: "entrega" | "recoleccion";
+  // Sin acciones de un tap: para armar la ruta de un día que no es hoy, antes
+  // de que la entrega realmente pase.
+  soloLectura?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -26,6 +34,13 @@ export function DashboardCard({
 
   const wa = paraWhatsApp(r.telefono);
   const maps = linkMapsPunto(r.direccion, r.lat, r.lng);
+
+  const hecha =
+    contexto === "entrega"
+      ? ENTREGA_HECHA.includes(r.estado)
+      : contexto === "recoleccion"
+        ? RECOLECCION_HECHA.includes(r.estado)
+        : false;
 
   function accion(destino: EstadoRentaStr) {
     setError(null);
@@ -37,7 +52,7 @@ export function DashboardCard({
   }
 
   return (
-    <Card>
+    <Card className={cn(hecha && "opacity-75")}>
       <CardContent className="space-y-3 py-3">
         <div className="flex items-start justify-between gap-2">
           <Link href={`/rentas/${r.id}`} className="min-w-0">
@@ -85,9 +100,22 @@ export function DashboardCard({
           )}
         </div>
 
-        {/* Acciones de un tap según estado */}
+        {/* Acciones de un tap según estado; si ya se atendió, solo la marca.
+            En modo solo lectura (armando la ruta de otro día) no se muestran:
+            no tiene sentido marcar "Entregado" antes de que pase el día. */}
         <div className="flex gap-2">
-          {r.estado === "CONFIRMADA" && (
+          {soloLectura && !hecha && (
+            <p className="flex h-11 flex-1 items-center justify-center text-xs text-muted-foreground">
+              Las acciones se habilitan el día de la entrega.
+            </p>
+          )}
+          {hecha && (
+            <div className="flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600/10 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              <CircleCheck className="size-4" />
+              {contexto === "recoleccion" ? "Recogido" : "Entregado"}
+            </div>
+          )}
+          {!soloLectura && !hecha && r.estado === "CONFIRMADA" && (
             <>
               <Button
                 variant="secondary"
@@ -106,7 +134,7 @@ export function DashboardCard({
               </Button>
             </>
           )}
-          {r.estado === "EN_RUTA" && (
+          {!soloLectura && !hecha && r.estado === "EN_RUTA" && (
             <Button
               className="h-11 flex-1"
               disabled={pending}
@@ -115,7 +143,7 @@ export function DashboardCard({
               <PackageCheck className="size-4" /> Entregado
             </Button>
           )}
-          {r.estado === "ENTREGADA" && (
+          {!soloLectura && !hecha && r.estado === "ENTREGADA" && (
             <Button
               className="h-11 flex-1"
               disabled={pending}
