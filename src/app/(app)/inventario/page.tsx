@@ -14,8 +14,43 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AccesoriosDialog,
+  NuevaUnidadDialog,
+  NuevoAccesorioDialog,
+  PreciosDialog,
+  ResolverMantenimientoButton,
+  UnidadDialog,
+} from "@/components/inventario-acciones";
 
 export const dynamic = "force-dynamic";
+
+// Sugiere el siguiente código de unidad a partir de los existentes ("CAL-20" → "CAL-21").
+function siguienteCodigo(codigos: string[], nombreModelo: string): string {
+  let prefijo = "";
+  let max = 0;
+  let ancho = 2;
+  for (const c of codigos) {
+    const m = c.match(/^(.*?)(\d+)$/);
+    if (!m) continue;
+    const n = parseInt(m[2]);
+    if (n > max) {
+      max = n;
+      prefijo = m[1];
+      ancho = m[2].length;
+    }
+  }
+  if (!prefijo) {
+    prefijo =
+      nombreModelo
+        .split(/\s+/)
+        .map((p) => p[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 3) + "-";
+  }
+  return `${prefijo}${String(max + 1).padStart(ancho, "0")}`;
+}
 
 function KPI({ icono, valor, label }: { icono: React.ReactNode; valor: number; label: string }) {
   return (
@@ -98,11 +133,21 @@ export default async function InventarioPage() {
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-base">{m.nombre}</CardTitle>
-            <div className="text-right">
-              <div className="font-semibold">{pesos(m.precioDia)}/día</div>
-              {m.precioDia3Mas && (
-                <div className="text-xs text-muted-foreground">3+: {pesos(m.precioDia3Mas)}</div>
-              )}
+            <div className="flex items-start gap-1">
+              <div className="text-right">
+                <div className="font-semibold">{pesos(m.precioDia)}/día</div>
+                {m.precioDia3Mas && (
+                  <div className="text-xs text-muted-foreground">3+: {pesos(m.precioDia3Mas)}</div>
+                )}
+              </div>
+              <PreciosDialog
+                modelo={{
+                  id: m.id,
+                  nombre: m.nombre,
+                  precioDia: m.precioDia,
+                  precioDia3Mas: m.precioDia3Mas,
+                }}
+              />
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5 pt-1">
@@ -117,24 +162,23 @@ export default async function InventarioPage() {
         <CardContent className="space-y-3">
           <Specs specs={m.specs} />
           <Variantes specs={m.specs} />
-          {m.unidades.length > 0 && (
-            <>
-              <Separator />
-              <div className="flex flex-wrap gap-1.5">
-                {m.unidades.map((u) => (
-                  <span
-                    key={u.id}
-                    className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
-                    title={u.notas ?? undefined}
-                  >
-                    <span className="font-medium">{u.codigo}</span>
-                    <span className={ESTADO_UNIDAD_META[u.estado]?.clase}>●</span>
-                    {u.notas && <span className="text-muted-foreground">{u.notas}</span>}
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
+          <Separator />
+          <div className="flex flex-wrap gap-1.5">
+            {m.unidades.map((u) => (
+              <UnidadDialog
+                key={u.id}
+                unidad={{ id: u.id, codigo: u.codigo, estado: u.estado, notas: u.notas }}
+              />
+            ))}
+            <NuevaUnidadDialog
+              modeloId={m.id}
+              modeloNombre={m.nombre}
+              codigoSugerido={siguienteCodigo(
+                m.unidades.map((u) => u.codigo),
+                m.nombre,
+              )}
+            />
+          </div>
         </CardContent>
       </Card>
     );
@@ -171,9 +215,23 @@ export default async function InventarioPage() {
 
       {/* Accesorios */}
       <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Cable className="size-5" /> Accesorios
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Cable className="size-5" /> Accesorios
+          </h2>
+          <div className="flex gap-2">
+            <AccesoriosDialog
+              accesorios={accesorios.map((a) => ({
+                id: a.id,
+                tipo: a.tipo,
+                descripcion: a.descripcion,
+                codigo: a.codigo,
+                estadoTambo: a.estadoTambo,
+              }))}
+            />
+            <NuevoAccesorioDialog />
+          </div>
+        </div>
         <Card>
           <CardContent className="space-y-3 py-4 text-sm">
             <div className="flex items-center justify-between">
@@ -193,7 +251,7 @@ export default async function InventarioPage() {
               </span>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1">
                 <Droplets className="size-4" /> Tambos de gas 20kg
               </span>
@@ -217,12 +275,15 @@ export default async function InventarioPage() {
             {mantenimientos.map((mt) => (
               <li key={mt.id}>
                 <Card>
-                  <CardContent className="flex items-center justify-between py-3 text-sm">
+                  <CardContent className="flex items-center justify-between gap-2 py-3 text-sm">
                     <div>
                       <span className="font-medium">{mt.unidad.codigo}</span>{" "}
                       <span className="text-muted-foreground">{mt.descripcion}</span>
+                      {mt.costo != null && (
+                        <span className="ml-1 text-muted-foreground">· {pesos(mt.costo)}</span>
+                      )}
                     </div>
-                    {mt.costo != null && <span>{pesos(mt.costo)}</span>}
+                    <ResolverMantenimientoButton id={mt.id} />
                   </CardContent>
                 </Card>
               </li>
