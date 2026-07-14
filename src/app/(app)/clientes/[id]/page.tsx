@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, MessageCircle, Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { rentaInclude } from "@/lib/rentas";
+import { rentaListSelect } from "@/lib/rentas";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,10 @@ export default async function ClienteDetallePage({
 }) {
   const { id } = await params;
   const cliente = await prisma.cliente.findUnique({
+    relationLoadStrategy: "join", // 1 solo round-trip a la BD remota
     where: { id },
     include: {
-      rentas: { include: rentaInclude, orderBy: { fechaInicio: "desc" } },
+      rentas: { select: rentaListSelect, orderBy: { fechaInicio: "desc" } },
     },
   });
   if (!cliente) notFound();

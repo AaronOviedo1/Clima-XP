@@ -28,17 +28,19 @@ const CANALES = [
   { v: "OTRO", l: "Otro" },
 ];
 
+type ClienteCreado = { id: string; nombre: string; telefono: string | null };
+
 export function ClienteRapidoDialog({
   onCreado,
 }: {
-  onCreado: (cliente: { id: string; nombre: string }) => void;
+  onCreado: (cliente: ClienteCreado) => void;
 }) {
   const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
   const [canal, setCanal] = useState("WHATSAPP");
   const [error, setError] = useState<string | null>(null);
-  const [duplicado, setDuplicado] = useState<{ id: string; nombre: string } | null>(null);
+  const [duplicado, setDuplicado] = useState<ClienteCreado | null>(null);
   const [pending, startTransition] = useTransition();
 
   function reset() {
@@ -49,7 +51,7 @@ export function ClienteRapidoDialog({
     setDuplicado(null);
   }
 
-  function terminar(cliente: { id: string; nombre: string }) {
+  function terminar(cliente: ClienteCreado) {
     onCreado(cliente);
     setAbierto(false);
     reset();

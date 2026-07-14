@@ -64,8 +64,8 @@ export async function crearCliente(
 }
 
 export type ClienteRapidoResult =
-  | { cliente: { id: string; nombre: string } }
-  | { duplicado: { id: string; nombre: string } }
+  | { cliente: { id: string; nombre: string; telefono: string | null } }
+  | { duplicado: { id: string; nombre: string; telefono: string | null } }
   | { error: string };
 
 // Crea un cliente desde el formulario de renta: devuelve el cliente en vez de redirigir.
@@ -94,13 +94,19 @@ export async function crearClienteRapido(datos: {
   if (telefono && !datos.forzar) {
     const existente = await prisma.cliente.findFirst({ where: { telefono } });
     if (existente) {
-      return { duplicado: { id: existente.id, nombre: existente.nombre } };
+      return {
+        duplicado: {
+          id: existente.id,
+          nombre: existente.nombre,
+          telefono: existente.telefono,
+        },
+      };
     }
   }
 
   const cliente = await prisma.cliente.create({
     data: { nombre, telefono, canalOrigen, notas },
-    select: { id: true, nombre: true },
+    select: { id: true, nombre: true, telefono: true },
   });
   revalidatePath("/clientes");
   return { cliente };
