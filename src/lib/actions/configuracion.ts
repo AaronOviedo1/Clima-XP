@@ -1,21 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
-import { AUTH_HABILITADA } from "@/lib/auth-flag";
 import { prisma } from "@/lib/prisma";
+import { esAdmin } from "@/lib/auth-guard";
 import { CLAVE_BODEGA_LAT, CLAVE_BODEGA_LNG } from "@/lib/configuracion";
 import { resolverUbicacion } from "@/lib/actions/rentas";
 
 export type ConfigFormState = { ok?: string; error?: string } | undefined;
-
-// Las páginas solo-admin las protege el middleware; las server actions se
-// protegen aquí (mientras AUTH_HABILITADA sea false, todo usuario es admin).
-async function esAdmin(): Promise<boolean> {
-  if (!AUTH_HABILITADA) return true;
-  const session = await auth();
-  return session?.user?.rol === "ADMIN";
-}
 
 const SOLO_ADMIN: ConfigFormState = {
   error: "Solo el administrador puede modificar la configuración.",
