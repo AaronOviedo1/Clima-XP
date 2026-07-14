@@ -1,13 +1,13 @@
-import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { prisma } from "@/lib/prisma";
 import { rentaInclude } from "@/lib/rentas";
 import { RentaDetalle } from "@/components/renta-detalle";
+import { RentaModal } from "@/components/renta-modal";
 
 export const dynamic = "force-dynamic";
 
-export default async function RentaDetallePage({
+export default async function RentaModalPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -17,10 +17,14 @@ export default async function RentaDetallePage({
     where: { id },
     include: rentaInclude,
   });
-  if (!renta) notFound();
+  if (!renta) return null;
 
   const session = AUTH_HABILITADA ? await auth() : null;
   const usuario = session?.user ?? USUARIO_POR_DEFECTO;
 
-  return <RentaDetalle renta={renta} esAdmin={usuario.rol === "ADMIN"} />;
+  return (
+    <RentaModal rentaId={renta.id}>
+      <RentaDetalle renta={renta} enModal esAdmin={usuario.rol === "ADMIN"} />
+    </RentaModal>
+  );
 }

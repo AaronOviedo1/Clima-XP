@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { prisma } from "@/lib/prisma";
-import { hoyNegocio, sumarDiasInput } from "@/lib/fechas";
-import { unidadesParaFechas } from "@/lib/actions/rentas";
-import { RentaForm } from "@/components/renta-form";
+import { RentaNueva } from "@/components/renta-nueva";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -14,21 +11,6 @@ export default async function NuevaRentaPage({
   searchParams: Promise<{ cliente?: string }>;
 }) {
   const { cliente } = await searchParams;
-
-  const inicio = hoyNegocio();
-  const fin = sumarDiasInput(inicio, 1);
-
-  const [clientes, accesorios, unidadesIniciales] = await Promise.all([
-    prisma.cliente.findMany({
-      select: { id: true, nombre: true },
-      orderBy: { nombre: "asc" },
-    }),
-    prisma.accesorio.findMany({
-      select: { id: true, descripcion: true, tipo: true, codigo: true },
-      orderBy: [{ tipo: "asc" }, { codigo: "asc" }],
-    }),
-    unidadesParaFechas(inicio, fin),
-  ]);
 
   return (
     <div className="space-y-4">
@@ -41,13 +23,7 @@ export default async function NuevaRentaPage({
         <h1 className="text-2xl font-bold tracking-tight">Nueva renta</h1>
       </div>
 
-      <RentaForm
-        clientes={clientes}
-        accesorios={accesorios}
-        unidadesIniciales={unidadesIniciales}
-        fechasIniciales={{ inicio, fin }}
-        clientePreseleccionado={cliente}
-      />
+      <RentaNueva clientePreseleccionado={cliente} />
     </div>
   );
 }
