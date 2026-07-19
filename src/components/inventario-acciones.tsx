@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   cambiarEstadoTambo,
   crearAccesorio,
@@ -65,12 +66,18 @@ function useAccion(alTerminar: () => void) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  function ejecutar(fn: () => Promise<InventarioActionResult>) {
+  function ejecutar(
+    fn: () => Promise<InventarioActionResult>,
+    mensajeExito?: string,
+  ) {
     setError(null);
     start(async () => {
       const res = await fn();
-      if ("error" in res) setError(res.error);
-      else {
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        if (mensajeExito) toast.success(mensajeExito);
         alTerminar();
         router.refresh();
       }
@@ -131,11 +138,13 @@ export function PreciosDialog({
             className="h-11 w-full"
             disabled={pending}
             onClick={() =>
-              ejecutar(() =>
-                editarPreciosModelo(modelo.id, {
-                  precioDia,
-                  precioDia3Mas: precio3Mas > 0 ? precio3Mas : null,
-                }),
+              ejecutar(
+                () =>
+                  editarPreciosModelo(modelo.id, {
+                    precioDia,
+                    precioDia3Mas: precio3Mas > 0 ? precio3Mas : null,
+                  }),
+                "Precios guardados",
               )
             }
           >
@@ -240,12 +249,14 @@ export function UnidadDialog({
             className="h-11 w-full"
             disabled={pending}
             onClick={() =>
-              ejecutar(() =>
-                editarUnidad(unidad.id, {
-                  codigo,
-                  estado: estado as (typeof ESTADOS_UNIDAD)[number],
-                  notas: notas || null,
-                }),
+              ejecutar(
+                () =>
+                  editarUnidad(unidad.id, {
+                    codigo,
+                    estado: estado as (typeof ESTADOS_UNIDAD)[number],
+                    notas: notas || null,
+                  }),
+                "Unidad guardada",
               )
             }
           >
@@ -283,11 +294,13 @@ export function UnidadDialog({
                 className="h-11 w-full"
                 disabled={pending}
                 onClick={() =>
-                  ejecutar(() =>
-                    reportarMantenimiento(unidad.id, {
-                      descripcion: falla,
-                      costo: costoFalla > 0 ? costoFalla : null,
-                    }),
+                  ejecutar(
+                    () =>
+                      reportarMantenimiento(unidad.id, {
+                        descripcion: falla,
+                        costo: costoFalla > 0 ? costoFalla : null,
+                      }),
+                    "Falla reportada",
                   )
                 }
               >
@@ -326,7 +339,9 @@ export function UnidadDialog({
                     <AlertDialogCancel className="h-11">Cancelar</AlertDialogCancel>
                     <AlertDialogAction
                       className="h-11 bg-destructive text-white hover:bg-destructive/90"
-                      onClick={() => ejecutar(() => eliminarUnidad(unidad.id))}
+                      onClick={() =>
+                        ejecutar(() => eliminarUnidad(unidad.id), "Unidad eliminada")
+                      }
                     >
                       Eliminar
                     </AlertDialogAction>
@@ -402,7 +417,12 @@ export function NuevaUnidadDialog({
           <Button
             className="h-11 w-full"
             disabled={pending}
-            onClick={() => ejecutar(() => crearUnidad(modeloId, { codigo, notas: notas || null }))}
+            onClick={() =>
+              ejecutar(
+                () => crearUnidad(modeloId, { codigo, notas: notas || null }),
+                "Unidad creada",
+              )
+            }
           >
             {pending ? "Creando…" : "Crear unidad"}
           </Button>
@@ -435,12 +455,20 @@ export function AccesoriosDialog({ accesorios }: { accesorios: AccesorioItem[] }
   // Dos taps para eliminar: el primero pide confirmación en la misma fila.
   const [confirmando, setConfirmando] = useState<string | null>(null);
 
-  function ejecutar(fn: () => Promise<InventarioActionResult>) {
+  function ejecutar(
+    fn: () => Promise<InventarioActionResult>,
+    mensajeExito?: string,
+  ) {
     setError(null);
     start(async () => {
       const res = await fn();
-      if ("error" in res) setError(res.error);
-      else router.refresh();
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        if (mensajeExito) toast.success(mensajeExito);
+        router.refresh();
+      }
     });
   }
 
@@ -486,7 +514,9 @@ export function AccesoriosDialog({ accesorios }: { accesorios: AccesorioItem[] }
                           key={e.v}
                           type="button"
                           disabled={pending}
-                          onClick={() => ejecutar(() => cambiarEstadoTambo(a.id, e.v))}
+                          onClick={() =>
+                            ejecutar(() => cambiarEstadoTambo(a.id, e.v), "Tambo actualizado")
+                          }
                           className={
                             "px-2.5 py-1.5 text-xs font-medium transition-colors " +
                             (i > 0 ? "border-l " : "") +
@@ -508,7 +538,7 @@ export function AccesoriosDialog({ accesorios }: { accesorios: AccesorioItem[] }
                       disabled={pending}
                       onClick={() => {
                         setConfirmando(null);
-                        ejecutar(() => eliminarAccesorio(a.id));
+                        ejecutar(() => eliminarAccesorio(a.id), "Accesorio eliminado");
                       }}
                     >
                       ¿Eliminar?
@@ -607,7 +637,10 @@ export function NuevoAccesorioDialog() {
             className="h-11 w-full"
             disabled={pending}
             onClick={() =>
-              ejecutar(() => crearAccesorio({ tipo, descripcion, codigo: codigo || null }))
+              ejecutar(
+                () => crearAccesorio({ tipo, descripcion, codigo: codigo || null }),
+                "Accesorio creado",
+              )
             }
           >
             {pending ? "Creando…" : "Crear accesorio"}
@@ -631,7 +664,11 @@ export function ResolverMantenimientoButton({ id }: { id: string }) {
       onClick={() =>
         start(async () => {
           const res = await resolverMantenimiento(id);
-          if (!("error" in res)) router.refresh();
+          if ("error" in res) toast.error(res.error);
+          else {
+            toast.success("Mantenimiento resuelto");
+            router.refresh();
+          }
         })
       }
     >

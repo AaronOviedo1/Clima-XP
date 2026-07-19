@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
@@ -434,13 +435,18 @@ export function RentaForm({
                 ? { monto: anticipoMonto, metodo: anticipoMetodo as never }
                 : null,
           });
-      if ("error" in res) setError(res.error);
-      else if (enModal) {
-        // En pop-up: cerrarlo y volver a lo que estaba detrás (el detalle al
-        // editar, la lista al dar de alta), ya actualizado.
-        router.back();
-        router.refresh();
-      } else router.push(`/rentas/${res.id}`);
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        toast.success(edicion ? "Cambios guardados" : "Renta creada");
+        if (enModal) {
+          // En pop-up: cerrarlo y volver a lo que estaba detrás (el detalle al
+          // editar, la lista al dar de alta), ya actualizado.
+          router.back();
+          router.refresh();
+        } else router.push(`/rentas/${res.id}`);
+      }
     });
   }
 

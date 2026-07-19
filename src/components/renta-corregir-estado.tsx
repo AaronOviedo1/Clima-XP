@@ -3,6 +3,7 @@
 import { Settings2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { corregirEstadoRenta } from "@/lib/actions/rentas";
 import { ESTADOS_RENTA, ESTADO_RENTA_META, type EstadoRentaStr } from "@/lib/rentas";
 import { Button } from "@/components/ui/button";
@@ -44,8 +45,11 @@ export function RentaCorregirEstado({
     setError(null);
     start(async () => {
       const res = await corregirEstadoRenta(rentaId, nuevo as never);
-      if ("error" in res) setError(res.error);
-      else {
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        toast.success("Estado corregido");
         setAbierto(false);
         router.refresh();
       }

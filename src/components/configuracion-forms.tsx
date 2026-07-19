@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { ExternalLink, Flame, Trash2, Wind } from "lucide-react";
+import { toast } from "sonner";
 import {
   agregarTarifa,
   eliminarTarifa,
@@ -34,6 +35,15 @@ function Mensaje({ state }: { state: ConfigFormState }) {
   return null;
 }
 
+// Dispara un toast cuando el resultado de una action de configuración cambia.
+function useToastConfig(state: ConfigFormState) {
+  useEffect(() => {
+    if (!state) return;
+    if (state.error) toast.error(state.error);
+    else if (state.ok) toast.success(state.ok);
+  }, [state]);
+}
+
 // ---------- Precios por modelo ----------
 
 export type ModeloPrecio = {
@@ -50,6 +60,7 @@ export function PreciosForm({ modelos }: { modelos: ModeloPrecio[] }) {
     guardarPrecios,
     undefined,
   );
+  useToastConfig(state);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -122,6 +133,8 @@ export function TarifasForm({ tarifas }: { tarifas: TarifaKm[] }) {
   );
   const [borrado, setBorrado] = useState<ConfigFormState>(undefined);
   const [borrando, startBorrar] = useTransition();
+  useToastConfig(state);
+  useToastConfig(borrado);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -174,6 +187,7 @@ export function AgregarTarifaForm() {
     agregarTarifa,
     undefined,
   );
+  useToastConfig(state);
 
   return (
     <form action={formAction} className="space-y-3">
@@ -210,6 +224,8 @@ export function BodegaForm({
   );
   const [quitado, setQuitado] = useState<ConfigFormState>(undefined);
   const [quitando, startQuitar] = useTransition();
+  useToastConfig(state);
+  useToastConfig(quitado);
 
   return (
     <div className="space-y-4">

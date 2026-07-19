@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { eliminarPago } from "@/lib/actions/rentas";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,11 @@ export function PagoEliminarBoton({
   function eliminar() {
     start(async () => {
       const res = await eliminarPago(rentaId, pagoId);
-      if (!("error" in res)) router.refresh();
+      if ("error" in res) toast.error(res.error);
+      else {
+        toast.success("Pago eliminado");
+        router.refresh();
+      }
     });
   }
 

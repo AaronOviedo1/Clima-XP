@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { registrarPago } from "@/lib/actions/rentas";
 import { pesos } from "@/lib/dinero";
 import { Button } from "@/components/ui/button";
@@ -45,8 +46,11 @@ export function PagoForm({
         metodo: metodo as never,
         tipo: tipo as never,
       });
-      if ("error" in res) setError(res.error);
-      else {
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        toast.success("Pago registrado");
         setMonto(0);
         router.refresh();
       }

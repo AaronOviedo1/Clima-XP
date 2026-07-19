@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, MessageCircle, Truck, PackageCheck, PackageOpen, CircleCheck } from "lucide-react";
-import { cambiarEstadoRenta } from "@/lib/actions/rentas";
+import { toast } from "sonner";
+import { cambiarEstadoRenta, marcarEntregada } from "@/lib/actions/rentas";
 import type { TarjetaRenta } from "@/lib/dashboard";
 import { ENTREGA_HECHA, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
@@ -12,6 +13,7 @@ import { linkMapsPunto } from "@/lib/maps";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DialogoEntrega } from "@/components/dialogo-entrega";
 import { cn } from "@/lib/utils";
 
 export function DashboardCard({
@@ -31,6 +33,7 @@ export function DashboardCard({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [dialogEntrega, setDialogEntrega] = useState(false);
 
   const wa = paraWhatsApp(r.telefono);
   const maps = linkMapsPunto(r.direccion, r.lat, r.lng);
@@ -46,8 +49,30 @@ export function DashboardCard({
     setError(null);
     start(async () => {
       const res = await cambiarEstadoRenta(r.id, destino);
-      if ("error" in res) setError(res.error);
-      else router.refresh();
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        toast.success(destino === "EN_RUTA" ? "En ruta" : "Recolección hecha");
+        router.refresh();
+      }
+    });
+  }
+
+  // Entregar pregunta primero qué accesorios se dejaron (marcarEntregada los
+  // registra); el resto de transiciones son de un tap directo.
+  function confirmarEntrega(accesorioIds: string[]) {
+    setError(null);
+    start(async () => {
+      const res = await marcarEntregada(r.id, accesorioIds);
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        toast.success("Renta entregada");
+        setDialogEntrega(false);
+        router.refresh();
+      }
     });
   }
 
@@ -128,7 +153,7 @@ export function DashboardCard({
               <Button
                 className="h-11 flex-1"
                 disabled={pending}
-                onClick={() => accion("ENTREGADA")}
+                onClick={() => setDialogEntrega(true)}
               >
                 <PackageCheck className="size-4" /> Entregado
               </Button>
@@ -138,7 +163,7 @@ export function DashboardCard({
             <Button
               className="h-11 flex-1"
               disabled={pending}
-              onClick={() => accion("ENTREGADA")}
+              onClick={() => setDialogEntrega(true)}
             >
               <PackageCheck className="size-4" /> Entregado
             </Button>
@@ -156,6 +181,14 @@ export function DashboardCard({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
       </CardContent>
+
+      <DialogoEntrega
+        tiposEquipo={r.tiposEquipo}
+        abierto={dialogEntrega}
+        onOpenChange={setDialogEntrega}
+        onConfirmar={confirmarEntrega}
+        pending={pending}
+      />
     </Card>
   );
 }

@@ -51,7 +51,7 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         {children}
-        <Toaster position="top-center" />
+        <Toaster position="top-center" duration={2000} />
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { crearClienteRapido } from "@/lib/actions/clientes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,9 +68,14 @@ export function ClienteRapidoDialog({
         canalOrigen: canal,
         forzar,
       });
-      if ("error" in res) setError(res.error);
-      else if ("duplicado" in res) setDuplicado(res.duplicado);
-      else terminar(res.cliente);
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else if ("duplicado" in res) setDuplicado(res.duplicado);
+      else {
+        toast.success("Cliente creado");
+        terminar(res.cliente);
+      }
     });
   }
 

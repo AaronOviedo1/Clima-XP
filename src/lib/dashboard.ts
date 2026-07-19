@@ -22,6 +22,9 @@ export type TarjetaRenta = {
   lng: number | null;
   ventanaEntrega: string | null;
   codigos: string[];
+  // Tipos de equipo de la renta (AEROCOOLER/CALENTON): definen qué accesorios
+  // ofrecer al marcar la entrega desde la tarjeta.
+  tiposEquipo: string[];
   total: number;
   saldo: number;
 };
@@ -43,6 +46,7 @@ export function tarjetaDesdeRenta(
     lng: renta.lng,
     ventanaEntrega: renta.ventanaEntrega,
     codigos: renta.unidades.map((u) => u.unidad.codigo),
+    tiposEquipo: [...new Set(renta.unidades.map((u) => u.unidad.modelo.tipo))],
     total: t?.total ?? 0,
     saldo: t?.saldo ?? 0,
   };
