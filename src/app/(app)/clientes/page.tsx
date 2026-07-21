@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, MessageCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { normalizarTelefono, formatoTelefono } from "@/lib/telefono";
+import { normalizarTelefono, formatoTelefono, linkWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { DistintivoEquipos } from "@/components/distintivo-equipos";
+import { tiposDeEquipoDeRentas } from "@/lib/rentas";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,10 @@ function iniciales(nombre: string) {
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((w) => w[0])
+      // Array.from respeta code points completos: `w[0]` partía los emojis
+      // (pares de sustitución UTF-16) dejando medio carácter, lo que provocaba
+      // un desajuste de hidratación en nombres que empiezan con emoji.
+      .map((w) => Array.from(w)[0] ?? "")
       .join("")
       .toUpperCase() || "?"
   );
@@ -51,7 +55,17 @@ export default async function ClientesPage({
           ],
         }
       : undefined,
-    include: { _count: { select: { rentas: true } } },
+    relationLoadStrategy: "join",
+    include: {
+      _count: { select: { rentas: true } },
+      rentas: {
+        select: {
+          unidades: {
+            select: { unidad: { select: { modelo: { select: { tipo: true } } } } },
+          },
+        },
+      },
+    },
     orderBy: { nombre: "asc" },
     take: 100,
   });
@@ -74,7 +88,7 @@ export default async function ClientesPage({
           <Input
             name="q"
             defaultValue={busqueda}
-            placeholder="Buscar por nombre o teléfono"
+            placeholder="Buscar cliente o teléfono"
             className="h-11 pl-9"
           />
         </form>
@@ -106,6 +120,7 @@ export default async function ClientesPage({
             </div>
             {clientes.map((c, i) => {
               const [bg, fg] = AV_PALETTE[i % AV_PALETTE.length];
+              const tipos = tiposDeEquipoDeRentas(c.rentas);
               return (
                 <Link
                   key={c.id}
@@ -122,7 +137,10 @@ export default async function ClientesPage({
                     >
                       {iniciales(c.nombre)}
                     </div>
-                    <span className="truncate font-bold">{c.nombre}</span>
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="truncate font-bold">{c.nombre}</span>
+                      <DistintivoEquipos tipos={tipos} />
+                    </div>
                   </div>
                   <span className="text-[13.5px] text-[#5a6b82] tabular-nums">
                     {formatoTelefono(c.telefono) || "—"}
@@ -140,41 +158,52 @@ export default async function ClientesPage({
             })}
           </Card>
 
-          {/* Tarjetas (móvil). */}
-          <ul className="space-y-2 lg:hidden">
+          {/* Lista (móvil): una sola tarjeta con filas estilo iOS. */}
+          <Card className="gap-0 overflow-hidden py-0 lg:hidden">
             {clientes.map((c, i) => {
               const [bg, fg] = AV_PALETTE[i % AV_PALETTE.length];
+              const wa = linkWhatsApp(c.telefono);
+              const nRentas = c._count.rentas;
               return (
-                <li key={c.id}>
-                  <Link href={`/clientes/${c.id}`}>
-                    <Card className="transition-colors hover:bg-muted/50">
-                      <CardContent className="flex items-center gap-3 py-3">
-                        <div
-                          className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
-                          style={{ background: bg, color: fg }}
-                        >
-                          {iniciales(c.nombre)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-medium">{c.nombre}</p>
-                          <p className="truncate text-sm text-muted-foreground">
-                            {formatoTelefono(c.telefono) || "Sin teléfono"}
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge variant="secondary">{c.canalOrigen}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {c._count.rentas}{" "}
-                            {c._count.rentas === 1 ? "renta" : "rentas"}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                <div
+                  key={c.id}
+                  className="flex items-center gap-3 border-b last:border-b-0"
+                >
+                  <Link
+                    href={`/clientes/${c.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-[15px] active:bg-muted/50"
+                  >
+                    <div
+                      className="flex size-[42px] shrink-0 items-center justify-center rounded-full text-base font-extrabold"
+                      style={{ background: bg, color: fg }}
+                    >
+                      {iniciales(c.nombre)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[15.5px] leading-tight font-bold tracking-[-0.3px]">
+                        {c.nombre}
+                      </p>
+                      <p className="mt-0.5 truncate text-[12.5px] text-muted-foreground">
+                        {formatoTelefono(c.telefono) || "Sin teléfono"} · {nRentas}{" "}
+                        {nRentas === 1 ? "renta" : "rentas"}
+                      </p>
+                    </div>
                   </Link>
-                </li>
+                  {wa && (
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`WhatsApp a ${c.nombre}`}
+                      className="mr-[15px] flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-emerald-600 active:scale-90 dark:text-emerald-500"
+                    >
+                      <MessageCircle className="size-[17px]" />
+                    </a>
+                  )}
+                </div>
               );
             })}
-          </ul>
+          </Card>
         </>
       )}
     </div>
