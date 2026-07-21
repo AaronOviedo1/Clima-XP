@@ -1,10 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Questrial, Geist_Mono } from "next/font/google";
+import { Manrope, Questrial, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-const questrial = Questrial({
+// Manrope es la tipografía de cuerpo/UI del diseño desktop; Questrial se
+// reserva para títulos grandes (--font-heading).
+const manrope = Manrope({
   variable: "--font-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const questrial = Questrial({
+  variable: "--font-heading",
   subsets: ["latin"],
   weight: "400",
   display: "swap",
@@ -47,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${questrial.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${manrope.variable} ${questrial.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         {children}

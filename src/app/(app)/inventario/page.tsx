@@ -52,14 +52,37 @@ function siguienteCodigo(codigos: string[], nombreModelo: string): string {
   return `${prefijo}${String(max + 1).padStart(ancho, "0")}`;
 }
 
-function KPI({ icono, valor, label }: { icono: React.ReactNode; valor: number; label: string }) {
+function KPI({
+  icono,
+  valor,
+  label,
+  bg,
+  fg,
+}: {
+  icono: React.ReactNode;
+  valor: number;
+  label: string;
+  bg: string;
+  fg: string;
+}) {
   return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-0.5 py-3 text-center">
-        <div className="text-muted-foreground">{icono}</div>
-        <div className="text-2xl font-bold">{valor}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </CardContent>
+    <Card className="p-[18px]">
+      <div className="flex items-center gap-3.5">
+        <div
+          className="flex size-[42px] shrink-0 items-center justify-center rounded-xl"
+          style={{ background: bg, color: fg }}
+        >
+          {icono}
+        </div>
+        <div>
+          <div className="text-2xl leading-none font-extrabold tabular-nums">
+            {valor}
+          </div>
+          <div className="mt-1 text-[12.5px] font-semibold text-muted-foreground">
+            {label}
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -185,39 +208,44 @@ export default async function InventarioPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold tracking-tight">Inventario</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Inventario</h1>
 
-      <div className="grid grid-cols-4 gap-2">
-        <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" />
-        <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" />
-        <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mant." />
-        <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="#e2edfb" fg="#2b5a9c" />
+        <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="#e7f6ec" fg="#1c8a4b" />
+        <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mantenimiento" bg="#fef3d6" fg="#b45309" />
+        <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos llenos" bg="#dff0fb" fg="#1f6fb0" />
       </div>
 
-      <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Package className="size-5" /> Aerocoolers
+      <section className="space-y-3.5">
+        <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
+          <Package className="size-5 text-[#51ADE5]" /> Aerocoolers
         </h2>
-        {aerocoolers.map((m) => (
-          <ModeloCard key={m.id} m={m} />
-        ))}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {aerocoolers.map((m) => (
+            <ModeloCard key={m.id} m={m} />
+          ))}
+        </div>
       </section>
 
-      <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <Flame className="size-5" /> Calentones
+      <section className="space-y-3.5">
+        <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
+          <Flame className="size-5 text-[#ea6a2e]" /> Calentones
         </h2>
-        {calentones.map((m) => (
-          <ModeloCard key={m.id} m={m} />
-        ))}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {calentones.map((m) => (
+            <ModeloCard key={m.id} m={m} />
+          ))}
+        </div>
       </section>
 
+      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
       {/* Accesorios */}
-      <section className="space-y-2">
+      <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Cable className="size-5" /> Accesorios
+          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold">
+            <Cable className="size-[18px] text-[#51ADE5]" /> Accesorios
           </h2>
           <div className="flex gap-2">
             <AccesoriosDialog
@@ -267,9 +295,9 @@ export default async function InventarioPage() {
 
       {/* Mantenimientos abiertos */}
       {mantenimientos.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Wrench className="size-5" /> Mantenimientos abiertos ({mantenimientos.length})
+        <section className="space-y-3">
+          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold text-[#b45309]">
+            <Wrench className="size-[18px]" /> Mantenimientos abiertos ({mantenimientos.length})
           </h2>
           <ul className="space-y-2">
             {mantenimientos.map((mt) => (
@@ -291,6 +319,7 @@ export default async function InventarioPage() {
           </ul>
         </section>
       )}
+      </div>
     </div>
   );
 }

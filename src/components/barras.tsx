@@ -16,18 +16,18 @@ export function Barras({
   const fmt = (v: number) => (formato === "pesos" ? pesos(v) : String(v));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {datos.map((d, i) => (
-        <div key={`${d.label}-${i}`} className="space-y-1">
-          <div className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="truncate">{d.label}</span>
-            <span className="shrink-0 font-medium tabular-nums">
+        <div key={`${d.label}-${i}`} className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-2 text-[13px]">
+            <span className="truncate font-semibold">{d.label}</span>
+            <span className="shrink-0 font-extrabold tabular-nums">
               {d.sub ?? fmt(d.valor)}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div className="h-3.5 overflow-hidden rounded-md bg-[#f1f5fb]">
             <div
-              className="h-full rounded-full bg-primary"
+              className="h-full rounded-md bg-[linear-gradient(90deg,#3871C1,#51ADE5)]"
               style={{ width: `${Math.max(2, (d.valor / max) * 100)}%` }}
             />
           </div>

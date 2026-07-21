@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -57,8 +57,9 @@
  *   Marrón rojizo (sol)  #722111  oklch(0.374 0.117 33.1)
  */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.185 0.025 257.4);
+  /* Fondo azul claro del diseño desktop (#eef3f9). */
+  --background: oklch(0.958 0.009 251);
+  --foreground: oklch(0.255 0.038 258);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.185 0.025 257.4);
   --popover: oklch(1 0 0);
@@ -72,7 +73,7 @@
   --accent: oklch(0.93 0.04 236.3);
   --accent-foreground: oklch(0.4 0.1 257.4);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.915 0.018 240);
+  --border: oklch(0.925 0.014 245);
   --input: oklch(0.915 0.018 240);
   --ring: oklch(0.551 0.139 257.4);
   --chart-1: oklch(0.551 0.139 257.4);
@@ -135,4 +136,29 @@
   html {
     @apply font-sans;
   }
+}
+
+/*
+ * Utilidades del diseño desktop (ClimaXpress Desktop.dc.html).
+ */
+@utility card-elev {
+  /* Sombra suave de tarjeta del diseño. */
+  box-shadow:
+    0 1px 2px rgba(20, 38, 63, 0.05),
+    0 12px 30px -24px rgba(20, 38, 63, 0.5);
+}
+.dark .card-elev {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 14px 34px -26px rgba(0, 0, 0, 0.6);
+}
+
+/* Gradiente de marca (acento) para botones/estados activos. */
+@utility brand-gradient {
+  background-image: linear-gradient(90deg, #3871c1, #51ade5);
+}
+
+/* Sidebar oscuro del diseño. */
+@utility sidebar-gradient {
+  background-image: linear-gradient(180deg, #1a3455 0%, #152b47 60%, #112238 100%);
 }

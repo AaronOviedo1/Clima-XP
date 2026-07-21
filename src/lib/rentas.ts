@@ -30,6 +30,7 @@ const unidadConModelo = {
 
 export const rentaListSelect = {
   ...rentaListaScalars,
+  direccion: true,
   cliente: { select: { nombre: true } },
   unidades: {
     select: { precioDia: true, unidad: { select: { modelo: unidadConModelo } } },

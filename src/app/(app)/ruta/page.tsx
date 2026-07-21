@@ -7,7 +7,6 @@ import { ordenarRuta } from "@/lib/ruta";
 import { obtenerBodega } from "@/lib/configuracion";
 import { linksRuta, type ParadaRuta } from "@/lib/maps";
 import { fechaLarga, fechaValida, hoyNegocio } from "@/lib/fechas";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCard } from "@/components/dashboard-card";
 import { RutaFechaSelector } from "@/components/ruta-fecha-selector";
@@ -43,9 +42,12 @@ export default async function RutaPage({
   }));
   const rutas = linksRuta(paradas, bodega ? { direccion: "Bodega", ...bodega } : undefined);
 
+  const conCoords = paradas.filter((p) => p.lat != null).length;
+
   return (
     <div className="space-y-4">
-      <div>
+      {/* Header solo móvil (en desktop lo cubre el TopBar). */}
+      <div className="lg:hidden">
         <h1 className="text-2xl font-bold tracking-tight">
           {esHoy ? "Ruta del día" : "Armar ruta"}
         </h1>
@@ -54,73 +56,119 @@ export default async function RutaPage({
         </p>
       </div>
 
-      <RutaFechaSelector fecha={fecha} hoy={hoyStr} />
-      {!esHoy && (
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            Viendo un día distinto a hoy: las acciones de un tap se desactivan
-            para no marcar entregas antes de tiempo.
-          </p>
-          <Link href="/ruta" className="shrink-0 text-xs text-primary underline underline-offset-2">
-            Volver a hoy
-          </Link>
+      <div className="lg:grid lg:grid-cols-[1fr_420px] lg:items-start lg:gap-5">
+        <div className="space-y-4">
+          <RutaFechaSelector fecha={fecha} hoy={hoyStr} />
+          {!esHoy && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                Viendo un día distinto a hoy: las acciones de un tap se desactivan
+                para no marcar entregas antes de tiempo.
+              </p>
+              <Link href="/ruta" className="shrink-0 text-xs text-primary underline underline-offset-2">
+                Volver a hoy
+              </Link>
+            </div>
+          )}
+
+          {ordenadas.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No hay entregas programadas para ese día.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Botón(es) de ruta en Google Maps */}
+              <div className="space-y-2">
+                {rutas.map((url, i) => (
+                  <a
+                    key={url}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="brand-gradient flex h-13 w-full items-center justify-center gap-2 rounded-2xl text-base font-extrabold text-white shadow-[0_12px_26px_-12px_rgba(56,113,193,.9)] transition hover:brightness-105"
+                  >
+                    <Navigation className="size-5" />
+                    {rutas.length > 1
+                      ? `Abrir ruta en Maps · parte ${i + 1}/${rutas.length}`
+                      : "Abrir ruta en Google Maps"}
+                  </a>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  {bodega
+                    ? "Orden sugerido por cercanía desde la bodega."
+                    : "Orden por captura. Configura BODEGA_LAT/LNG para ordenar por cercanía."}
+                  {paradas.some((p) => p.lat == null) &&
+                    " Algunas paradas usan dirección (sin coordenadas)."}
+                </p>
+              </div>
+
+              {/* Paradas numeradas */}
+              <ol className="space-y-3">
+                {ordenadas.map((r, i) => (
+                  <li key={r.id} className="flex items-start gap-3">
+                    <div className="mt-3 flex size-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#3871C1,#51ADE5)] text-sm font-extrabold text-white">
+                      {i + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <DashboardCard
+                        r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
+                        mostrarSaldo={esAdmin}
+                        contexto="entrega"
+                        soloLectura={!esHoy}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ol>
+
+              <p className="flex items-center justify-center gap-1 pt-2 text-xs text-muted-foreground">
+                <MapPin className="size-3.5" /> El aviso masivo “vamos en camino”
+                llega en la Fase 7 (WhatsApp).
+              </p>
+            </>
+          )}
         </div>
-      )}
 
-      {ordenadas.length === 0 ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No hay entregas programadas para ese día.
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Botón(es) de ruta en Google Maps */}
-          <div className="space-y-2">
-            {rutas.map((url, i) => (
-              <Button asChild key={url} className="h-12 w-full text-base">
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  <Navigation className="size-5" />
-                  {rutas.length > 1
-                    ? `Abrir ruta en Maps · parte ${i + 1}/${rutas.length}`
-                    : "Abrir ruta en Google Maps"}
-                </a>
-              </Button>
-            ))}
-            <p className="text-xs text-muted-foreground">
-              {bodega
-                ? "Orden sugerido por cercanía desde la bodega."
-                : "Orden por captura. Configura BODEGA_LAT/LNG para ordenar por cercanía."}
-              {paradas.some((p) => p.lat == null) &&
-                " Algunas paradas usan dirección (sin coordenadas)."}
-            </p>
-          </div>
-
-          {/* Paradas numeradas */}
-          <ol className="space-y-2">
-            {ordenadas.map((r, i) => (
-              <li key={r.id} className="flex items-start gap-2">
-                <div className="mt-3 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  {i + 1}
+        {/* Panel resumen (solo desktop). */}
+        {ordenadas.length > 0 && (
+          <aside className="sticky top-0 hidden lg:block">
+            <Card className="gap-0 overflow-hidden py-0">
+              <div className="relative flex h-40 items-center justify-center bg-[linear-gradient(135deg,#dce9f7,#eaf3fb)]">
+                <Navigation className="size-10 text-primary/40" />
+                <div className="absolute bottom-3.5 left-3.5 flex items-center gap-2 rounded-[10px] bg-white/90 px-3 py-2 text-xs font-bold shadow">
+                  <span className="size-2.5 rounded-full bg-[#152b47]" />
+                  Bodega
                 </div>
-                <div className="min-w-0 flex-1">
-                  <DashboardCard
-                    r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
-                    mostrarSaldo={esAdmin}
-                    contexto="entrega"
-                    soloLectura={!esHoy}
-                  />
+              </div>
+              <div className="space-y-1 p-[18px]">
+                <div className="mb-1 text-[13px] font-extrabold">
+                  Resumen de la ruta
                 </div>
-              </li>
-            ))}
-          </ol>
-
-          <p className="flex items-center justify-center gap-1 pt-2 text-xs text-muted-foreground">
-            <MapPin className="size-3.5" /> El aviso masivo “vamos en camino”
-            llega en la Fase 7 (WhatsApp).
-          </p>
-        </>
-      )}
+                <div className="flex justify-between py-1 text-[13px] text-muted-foreground">
+                  <span>Paradas</span>
+                  <span className="font-bold text-foreground">
+                    {ordenadas.length}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 text-[13px] text-muted-foreground">
+                  <span>Con coordenadas</span>
+                  <span className="font-bold text-foreground">
+                    {conCoords}/{paradas.length}
+                  </span>
+                </div>
+                <div className="flex justify-between py-1 text-[13px] text-muted-foreground">
+                  <span>Orden</span>
+                  <span className="font-bold text-foreground">
+                    {bodega ? "Por cercanía" : "Por captura"}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

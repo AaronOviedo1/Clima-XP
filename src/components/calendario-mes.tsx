@@ -3,31 +3,28 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, PackageCheck, PackageOpen, Truck } from "lucide-react";
-import type { DiaCalendario, ModeloCalendario } from "@/lib/calendario";
+import type { DiaCalendario } from "@/lib/calendario";
 import { ESTADO_RENTA_META } from "@/lib/rentas";
 import { fechaDesdeInput, fechaLarga } from "@/lib/fechas";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-const DIAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
+const DIAS_SEMANA = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
 
-// Chip con las unidades libres de un modelo: rojo si no queda ninguna, ámbar si
-// hay ocupación parcial, y sin fondo cuando está todo libre (para que un día
-// tranquilo se vea tranquilo).
-function claseChip(libres: number, total: number): string {
-  if (libres === 0) return "bg-red-500/15 font-bold text-red-700 dark:text-red-400";
-  if (libres < total)
-    return "bg-amber-500/15 font-semibold text-amber-700 dark:text-amber-500";
-  return "text-muted-foreground/60";
+// Entregas y recolecciones programadas ese día (una renta puede contar en ambas
+// si se entrega y recoge el mismo día).
+function agenda(d: DiaCalendario) {
+  return {
+    entregas: d.rentas.filter((r) => r.entrega).length,
+    recolecciones: d.rentas.filter((r) => r.recoleccion).length,
+  };
 }
 
 export function CalendarioMes({
-  modelos,
   dias,
   hoy,
 }: {
-  modelos: ModeloCalendario[];
   dias: DiaCalendario[];
   hoy: string;
 }) {
@@ -44,15 +41,17 @@ export function CalendarioMes({
   ];
   while (celdas.length % 7 !== 0) celdas.push(null);
 
+  const abiertoAgenda = abierto ? agenda(abierto) : null;
+
   return (
     <>
-      <div className="space-y-1">
+      <div className="space-y-2">
         {/* Días de la semana */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-2">
           {DIAS_SEMANA.map((d, i) => (
             <div
               key={i}
-              className="pb-1 text-center text-xs font-semibold text-muted-foreground"
+              className="py-1 text-center text-[11.5px] font-extrabold tracking-wide text-[#94a3b8]"
             >
               {d}
             </div>
@@ -60,65 +59,59 @@ export function CalendarioMes({
         </div>
 
         {/* Cuadrícula del mes */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-2">
           {celdas.map((d, i) => {
-            if (!d) return <div key={`hueco-${i}`} />;
+            if (!d) return <div key={`hueco-${i}`} className="min-h-[104px]" />;
 
             const esHoy = d.fecha === hoy;
-            const esPasado = d.fecha < hoy;
-            const agotado = modelos.some((m) => d.libresPorModelo[m.id] === 0);
+            const { entregas, recolecciones } = agenda(d);
+            const conActividad = entregas > 0 || recolecciones > 0;
 
             return (
               <button
                 key={d.fecha}
                 type="button"
-                onClick={() => setAbierto(d)}
-                aria-label={`${d.dia}: ${d.rentas.length} rentas`}
+                onClick={() => conActividad && setAbierto(d)}
+                disabled={!conActividad}
+                aria-label={`${d.dia}: ${entregas} entregas, ${recolecciones} recolecciones`}
                 className={cn(
-                  "flex min-h-[4.75rem] flex-col gap-1 rounded-lg border bg-card p-1.5 text-left transition",
-                  "hover:border-primary/60 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  agotado && "border-red-500/30 bg-red-500/[0.04]",
-                  esPasado && "opacity-50",
-                  esHoy && "border-primary ring-1 ring-primary",
+                  "flex min-h-[104px] flex-col gap-1.5 rounded-xl p-2 text-left transition",
+                  conActividad
+                    ? "cursor-pointer hover:brightness-[0.98]"
+                    : "cursor-default",
+                  esHoy
+                    ? "border-2 border-primary bg-[#f5f9ff]"
+                    : conActividad
+                      ? "border border-[#eef2f8] bg-card shadow-[0_6px_16px_-14px_rgba(20,38,63,.7)]"
+                      : "border border-[#eef2f8] bg-[#fbfcfe]",
                 )}
               >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={cn(
-                      "text-xs font-semibold tabular-nums",
-                      esHoy &&
-                        "flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {d.dia}
-                  </span>
-                  {d.rentas.length > 0 && (
-                    <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
-                      {d.rentas.length}
+                <span
+                  className={cn(
+                    "text-[13px] font-extrabold tabular-nums",
+                    esHoy
+                      ? "text-primary"
+                      : conActividad
+                        ? "text-foreground"
+                        : "text-[#b7c2d2]",
+                  )}
+                >
+                  {d.dia}
+                </span>
+
+                <div className="flex flex-col gap-1">
+                  {entregas > 0 && (
+                    <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#e2edfb] px-1.5 py-0.5 text-[11px] font-bold text-[#2b5a9c]">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      {entregas} {entregas === 1 ? "entrega" : "entregas"}
                     </span>
                   )}
-                </div>
-
-                <div className="space-y-0.5">
-                  {modelos.map((m) => {
-                    const libres = d.libresPorModelo[m.id];
-                    return (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between gap-0.5 text-[10px] leading-tight"
-                      >
-                        <span className="text-muted-foreground/70">{m.abrev}</span>
-                        <span
-                          className={cn(
-                            "min-w-4 rounded px-1 text-center tabular-nums",
-                            claseChip(libres, m.total),
-                          )}
-                        >
-                          {libres}
-                        </span>
-                      </div>
-                    );
-                  })}
+                  {recolecciones > 0 && (
+                    <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#fdefe2] px-1.5 py-0.5 text-[11px] font-bold text-[#b45309]">
+                      <span className="size-1.5 rounded-full bg-[#ea6a2e]" />
+                      {recolecciones} recol.
+                    </span>
+                  )}
                 </div>
               </button>
             );
@@ -132,37 +125,31 @@ export function CalendarioMes({
           overlayClassName="backdrop-blur-md bg-black/30"
           className="no-scrollbar max-h-[85dvh] overflow-y-auto overflow-x-hidden sm:max-w-lg"
         >
-          {abierto && (
+          {abierto && abiertoAgenda && (
             <>
               <DialogTitle className="pr-8 first-letter:uppercase">
                 {fechaLarga(fechaDesdeInput(abierto.fecha))}
               </DialogTitle>
 
-              {/* Disponibilidad del día */}
-              <div className="flex flex-wrap gap-1.5">
-                {modelos.map((m) => {
-                  const libres = abierto.libresPorModelo[m.id];
-                  return (
-                    <span
-                      key={m.id}
-                      className={cn(
-                        "rounded-md px-2 py-1 text-xs",
-                        libres === 0
-                          ? "bg-red-500/15 font-semibold text-red-700 dark:text-red-400"
-                          : libres < m.total
-                            ? "bg-amber-500/15 font-medium text-amber-700 dark:text-amber-500"
-                            : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {m.nombre}: {libres} de {m.total} libres
-                    </span>
-                  );
-                })}
+              {/* Resumen del día: entregas y recolecciones */}
+              <div className="flex flex-wrap gap-2">
+                {abiertoAgenda.entregas > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#e2edfb] px-2.5 py-1 text-xs font-bold text-[#2b5a9c]">
+                    <Truck className="size-3.5" /> {abiertoAgenda.entregas}{" "}
+                    {abiertoAgenda.entregas === 1 ? "entrega" : "entregas"}
+                  </span>
+                )}
+                {abiertoAgenda.recolecciones > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#fdefe2] px-2.5 py-1 text-xs font-bold text-[#b45309]">
+                    <PackageOpen className="size-3.5" /> {abiertoAgenda.recolecciones}{" "}
+                    {abiertoAgenda.recolecciones === 1 ? "recolección" : "recolecciones"}
+                  </span>
+                )}
               </div>
 
               {abierto.rentas.length === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
-                  Sin rentas ese día. Todo el equipo está libre.
+                  Sin rentas ese día.
                 </p>
               ) : (
                 <ul className="space-y-2">

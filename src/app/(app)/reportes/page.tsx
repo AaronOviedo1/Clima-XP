@@ -18,13 +18,13 @@ function KPI({
   label: string;
 }) {
   return (
-    <Card>
-      <CardContent className="space-y-0.5 py-3">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          {icono} {label}
-        </div>
-        <div className="text-xl font-bold">{valor}</div>
-      </CardContent>
+    <Card className="p-[18px]">
+      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+        {icono} {label}
+      </div>
+      <div className="mt-2 text-[27px] font-extrabold tracking-tight tabular-nums">
+        {valor}
+      </div>
     </Card>
   );
 }
@@ -75,11 +75,11 @@ export default async function ReportesPage({
   ];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Reportes</h1>
+    <div className="space-y-5">
+      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Reportes</h1>
 
       {/* Selector de periodo */}
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         <Link href="/reportes">
           <Badge
             variant={periodo === "todos" ? "default" : "outline"}
@@ -101,20 +101,22 @@ export default async function ReportesPage({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI icono={<TrendingUp className="size-3.5" />} valor={pesos(rep.kpis.ingresos)} label="Ingresos" />
         <KPI icono={<Receipt className="size-3.5" />} valor={String(rep.kpis.numRentas)} label="Rentas" />
         <KPI icono={<Wallet className="size-3.5" />} valor={pesos(rep.kpis.ticketPromedio)} label="Ticket promedio" />
         <KPI icono={<Wallet className="size-3.5" />} valor={pesos(rep.kpis.porCobrar)} label="Por cobrar" />
       </div>
 
-      <Seccion titulo={periodo === "todos" ? "Ingresos por año" : "Ingresos por mes"} icono={<TrendingUp className="size-4" />}>
-        <Barras datos={rep.ingresosPorPeriodo} formato="pesos" />
-      </Seccion>
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+        <Seccion titulo={periodo === "todos" ? "Ingresos por año" : "Ingresos por mes"} icono={<TrendingUp className="size-4" />}>
+          <Barras datos={rep.ingresosPorPeriodo} formato="pesos" />
+        </Seccion>
 
-      <Seccion titulo="Aerocoolers vs Calentones" icono={<Wind className="size-4" />}>
-        <Barras datos={tipoSerie} formato="pesos" />
-      </Seccion>
+        <Seccion titulo="Aerocoolers vs Calentones" icono={<Wind className="size-4" />}>
+          <Barras datos={tipoSerie} formato="pesos" />
+        </Seccion>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Seccion titulo="Ingresos por método" icono={<Receipt className="size-4" />}>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Flame, Wind } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { datosCalendario, mesValido, sumarMeses } from "@/lib/calendario";
 import { hoyNegocio } from "@/lib/fechas";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,19 @@ import { CalendarioMes } from "@/components/calendario-mes";
 
 export const dynamic = "force-dynamic";
 
+function Leyenda() {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+      <span className="flex items-center gap-1.5 font-semibold">
+        <span className="size-2.5 rounded-full bg-primary" /> Entregas
+      </span>
+      <span className="flex items-center gap-1.5 font-semibold">
+        <span className="size-2.5 rounded-full bg-[#ea6a2e]" /> Recolecciones
+      </span>
+    </div>
+  );
+}
+
 export default async function CalendarioPage({
   searchParams,
 }: {
@@ -17,7 +30,7 @@ export default async function CalendarioPage({
 }) {
   const params = await searchParams;
   const mes = mesValido(params.mes);
-  const { modelos, dias } = await datosCalendario(mes);
+  const { dias } = await datosCalendario(mes);
 
   const hoy = hoyNegocio();
   const mesActual = hoy.slice(0, 7);
@@ -25,57 +38,50 @@ export default async function CalendarioPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Calendario de ocupación</h1>
+      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Calendario</h1>
 
-      {/* Navegación de mes */}
-      <div className="flex items-center justify-between gap-2">
-        <Button variant="outline" size="icon" className="size-11" asChild>
+      {/* Navegación de mes (+ leyenda a la derecha en desktop) */}
+      <div className="flex items-center gap-3.5">
+        <Button variant="outline" size="icon" className="size-10" asChild>
           <Link href={`/calendario?mes=${sumarMeses(mes, -1)}`} aria-label="Mes anterior">
             <ChevronLeft className="size-5" />
           </Link>
         </Button>
-        <div className="text-center">
-          <div className="text-lg font-semibold first-letter:uppercase">{tituloMes}</div>
+        <div className="min-w-[170px] text-center lg:min-w-0 lg:text-left">
+          <div className="text-xl font-extrabold tracking-tight first-letter:uppercase">
+            {tituloMes}
+          </div>
           {mes !== mesActual && (
             <Link href="/calendario" className="text-xs text-primary underline underline-offset-2">
               Volver a hoy
             </Link>
           )}
         </div>
-        <Button variant="outline" size="icon" className="size-11" asChild>
+        <Button variant="outline" size="icon" className="size-10" asChild>
           <Link href={`/calendario?mes=${sumarMeses(mes, 1)}`} aria-label="Mes siguiente">
             <ChevronRight className="size-5" />
           </Link>
         </Button>
+        <div className="hidden flex-1 lg:block" />
+        <div className="hidden lg:block">
+          <Leyenda />
+        </div>
       </div>
 
-      {/* Qué significa cada abreviatura de la cuadrícula */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        {modelos.map((m) => (
-          <span key={m.id} className="flex items-center gap-1.5">
-            {m.tipo === "AEROCOOLER" ? (
-              <Wind className="size-3.5 shrink-0 text-sky-500" />
-            ) : (
-              <Flame className="size-3.5 shrink-0 text-orange-500" />
-            )}
-            <span className="font-semibold text-foreground">{m.abrev}</span>
-            <span>
-              {m.nombre} · {m.total} {m.total === 1 ? "unidad" : "unidades"}
-            </span>
-          </span>
-        ))}
+      {/* Leyenda (móvil) */}
+      <div className="lg:hidden">
+        <Leyenda />
       </div>
 
       <Card className="py-0">
-        <CardContent className="p-2 sm:p-3">
-          <CalendarioMes modelos={modelos} dias={dias} hoy={hoy} />
+        <CardContent className="p-3 sm:p-3.5">
+          <CalendarioMes dias={dias} hoy={hoy} />
         </CardContent>
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Cada celda muestra las <strong>unidades libres</strong> de cada modelo ese día (rentas
-        confirmadas, en ruta o entregadas). Toca un día para ver sus rentas. El día de recolección
-        la unidad ya cuenta como libre. No incluye unidades en mantenimiento o de baja.
+        Cada día marca sus <strong>entregas</strong> y <strong>recolecciones</strong> programadas
+        (aerocoolers y calentones). Toca un día para ver el detalle de sus rentas.
       </p>
     </div>
   );

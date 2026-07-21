@@ -26,7 +26,7 @@ function Seccion({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2 text-[15px] font-extrabold">
           {icono}
           {titulo}
         </CardTitle>
@@ -41,8 +41,10 @@ export default async function ConfiguracionPage() {
   const { modelos, tarifas, bodega } = await datosConfiguracion();
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
+    <div className="space-y-4 lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
+      <h1 className="text-2xl font-bold tracking-tight lg:hidden">
+        Configuración
+      </h1>
 
       <Seccion
         titulo="Precios por modelo"
