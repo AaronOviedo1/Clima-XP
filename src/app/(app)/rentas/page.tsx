@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -144,7 +144,7 @@ export default async function RentasPage({
     <div className="space-y-5">
       {/* Header solo móvil (en desktop lo cubre el TopBar). */}
       <div className="flex items-center justify-between gap-2 lg:hidden">
-        <h1 className="text-2xl font-bold tracking-tight">Rentas</h1>
+        <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em]">Rentas</h1>
         <Button asChild size="sm">
           <Link href="/rentas/nueva">
             <Plus className="size-4" /> Nueva
@@ -197,18 +197,37 @@ export default async function RentasPage({
         <>
           {/* Tabla por semana (desktop). */}
           <Card className="hidden overflow-hidden py-0 lg:block">
+            {/* Encabezados de columna, una sola vez arriba de la tabla. */}
+            <div
+              className={cn(
+                GRID,
+                "border-b border-[#eef2f8] px-5 py-2.5 text-[11.5px] font-bold tracking-wide text-[#94a3b8] uppercase",
+              )}
+            >
+              <span />
+              <span>Cliente</span>
+              <span>Equipos</span>
+              <span>Fechas</span>
+              <span>Estado</span>
+              <span className="text-right">Total</span>
+            </div>
             {semanas.map((s) => {
               const titulo = tituloSemana(s.offset);
               const actual = s.offset === 0;
               return (
-                <div key={s.clave}>
-                  <div
+                <details
+                  key={s.clave}
+                  open={actual}
+                  className="group border-t border-[#eef2f8] first:border-t-0"
+                >
+                  <summary
                     className={cn(
-                      "flex items-baseline justify-between gap-3 border-t border-[#eef2f8] px-5 py-3.5 first:border-t-0",
-                      actual ? "bg-[#eef4fb]" : "bg-[#fafbfe]",
+                      "flex list-none cursor-pointer items-center justify-between gap-3 px-5 py-3.5 select-none [&::-webkit-details-marker]:hidden",
+                      actual ? "bg-[#eef4fb]" : "bg-[#fafbfe] hover:bg-[#f2f5fb]",
                     )}
                   >
-                    <div className="flex items-baseline gap-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <ChevronRight className="size-4 text-[#94a3b8] transition-transform group-open:rotate-90" />
                       <span
                         className={cn(
                           "text-sm font-extrabold",
@@ -235,20 +254,7 @@ export default async function RentasPage({
                         </span>
                       )}
                     </div>
-                  </div>
-                  <div
-                    className={cn(
-                      GRID,
-                      "border-b border-[#eef2f8] px-5 py-2 text-[11.5px] font-bold tracking-wide text-[#94a3b8] uppercase",
-                    )}
-                  >
-                    <span />
-                    <span>Cliente</span>
-                    <span>Equipos</span>
-                    <span>Fechas</span>
-                    <span>Estado</span>
-                    <span className="text-right">Total</span>
-                  </div>
+                  </summary>
                   {s.rentas.map((r) => {
                     const t = totalesDeRenta(r);
                     const meta = ESTADO_RENTA_META[r.estado];
@@ -303,7 +309,7 @@ export default async function RentasPage({
                       </Link>
                     );
                   })}
-                </div>
+                </details>
               );
             })}
           </Card>

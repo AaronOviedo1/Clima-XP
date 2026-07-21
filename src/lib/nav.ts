@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Home,
   Map,
+  MoreHorizontal,
   Package,
   Settings,
   Truck,
@@ -48,4 +49,28 @@ export function navMovil(esAdmin: boolean): {
     principales: items.filter((i) => PRINCIPALES_MOVIL.includes(i.href)),
     extras: items.filter((i) => !PRINCIPALES_MOVIL.includes(i.href)),
   };
+}
+
+// Tab bar móvil estilo iOS (diseño Clima-XP Móvil): 5 destinos. "Más" (/mas)
+// agrupa Inventario/Clientes/Reportes/Config como sub-páginas. Calendario es
+// soloAdmin, así que el repartidor ve 4 tabs.
+export const TABS_MOVIL: NavItem[] = [
+  { href: "/", label: "Hoy", icon: Home },
+  { href: "/ruta", label: "Ruta", icon: Map },
+  { href: "/rentas", label: "Rentas", icon: Truck },
+  { href: "/calendario", label: "Calendario", icon: CalendarDays, soloAdmin: true },
+  { href: "/mas", label: "Más", icon: MoreHorizontal },
+];
+
+// Rutas que viven "dentro" de la pestaña Más (para marcarla activa).
+export const RUTAS_MAS = [
+  "/mas",
+  "/clientes",
+  "/inventario",
+  "/reportes",
+  "/configuracion",
+];
+
+export function tabsParaRol(esAdmin: boolean): NavItem[] {
+  return TABS_MOVIL.filter((i) => esAdmin || !i.soloAdmin);
 }

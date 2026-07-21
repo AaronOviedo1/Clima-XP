@@ -60,7 +60,7 @@ export default async function ClientesPage({
     <div className="space-y-5">
       {/* Header solo móvil (en desktop lo cubre el TopBar). */}
       <div className="flex items-center justify-between gap-2 lg:hidden">
-        <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
+        <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em]">Clientes</h1>
         <Button asChild size="sm">
           <Link href="/clientes/nuevo">
             <Plus className="size-4" /> Nuevo

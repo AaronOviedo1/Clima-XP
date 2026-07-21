@@ -90,14 +90,22 @@
   --sidebar-accent-foreground: oklch(0.4 0.1 257.4);
   --sidebar-border: oklch(0.915 0.018 240);
   --sidebar-ring: oklch(0.551 0.139 257.4);
+  /* Colores de las cajas de ícono de los KPI (fondo/figura), claro. */
+  --kpi1a: #e2edfb;
+  --kpi1b: #2b5a9c;
+  --kpi2a: #dff0fb;
+  --kpi2b: #1f6fb0;
+  --kpi3a: #fde9e5;
+  --kpi3b: #c0392b;
 }
 
 .dark {
-  --background: oklch(0.16 0.02 257.4);
+  /* Fondo casi negro del diseño móvil (#0a0b0f) con cards #171a22. */
+  --background: oklch(0.115 0.006 262);
   --foreground: oklch(0.97 0.005 236.3);
-  --card: oklch(0.21 0.025 257.4);
+  --card: oklch(0.19 0.011 262);
   --card-foreground: oklch(0.97 0.005 236.3);
-  --popover: oklch(0.21 0.025 257.4);
+  --popover: oklch(0.19 0.011 262);
   --popover-foreground: oklch(0.97 0.005 236.3);
   --primary: oklch(0.715 0.12 238.4);
   --primary-foreground: oklch(0.16 0.02 257.4);
@@ -124,6 +132,13 @@
   --sidebar-accent-foreground: oklch(0.97 0.005 236.3);
   --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.715 0.12 238.4);
+  /* KPI en oscuro (del diseño móvil). */
+  --kpi1a: #1b2f4d;
+  --kpi1b: #9cc3f2;
+  --kpi2a: #16324a;
+  --kpi2b: #7fc4ee;
+  --kpi3a: #3a201c;
+  --kpi3b: #f19a8c;
 }
 
 @layer base {
@@ -131,7 +146,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply overflow-x-hidden bg-background text-foreground;
   }
   html {
     @apply font-sans;

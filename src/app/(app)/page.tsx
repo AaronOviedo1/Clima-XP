@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Plus, Truck, PackageOpen, Wallet } from "lucide-react";
 import { auth } from "@/auth";
@@ -8,7 +9,6 @@ import { pesos } from "@/lib/dinero";
 import { equiposPorModelo, totalesDeRenta } from "@/lib/rentas";
 import { claseColorDia } from "@/lib/colores-dia";
 import type { RentaListItemData } from "@/components/renta-list-item";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCard } from "@/components/dashboard-card";
 import { NotificacionesBoton } from "@/components/push/notificaciones-boton";
@@ -16,34 +16,45 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// Saludo según la hora local del negocio (Hermosillo, UTC−7 fijo).
+function saludoDeHoy(): string {
+  const h = (new Date().getUTCHours() - 7 + 24) % 24;
+  return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+}
+
 function KPI({
   icono,
   valor,
   label,
   bg,
   fg,
+  wide = false,
 }: {
   icono: React.ReactNode;
   valor: number | string;
   label: string;
   bg: string;
   fg: string;
+  // En móvil ocupa la fila completa (p. ej. "Por cobrar").
+  wide?: boolean;
 }) {
   return (
-    <Card className="p-[18px]">
-      <div className="flex items-center justify-between">
+    <Card className={cn("p-4", wide && "col-span-2 lg:col-span-1")}>
+      <div className="flex items-center gap-3.5">
         <div
-          className="flex size-10 items-center justify-center rounded-xl"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl"
           style={{ background: bg, color: fg }}
         >
           {icono}
         </div>
-      </div>
-      <div className="mt-3.5 text-3xl font-extrabold tracking-tight tabular-nums">
-        {valor}
-      </div>
-      <div className="text-[13px] font-semibold text-muted-foreground">
-        {label}
+        <div className="min-w-0">
+          <div className="text-2xl leading-none font-extrabold tracking-tight tabular-nums">
+            {valor}
+          </div>
+          <div className="mt-1 truncate text-[13px] font-semibold text-muted-foreground">
+            {label}
+          </div>
+        </div>
       </div>
     </Card>
   );
@@ -89,14 +100,12 @@ function FilaCompacta({
   return (
     <Link
       href={`/rentas/${renta.id}`}
-      className="flex items-center gap-3 border-b border-[#f1f5fb] px-4 py-3 last:border-b-0 hover:bg-[#f8fafd]"
+      className={cn(
+        "flex items-center gap-3 border-b border-black/[0.04] px-4 py-3 transition last:border-b-0 hover:brightness-[0.97] dark:hover:brightness-110",
+        claseColorDia(renta.fechaInicio),
+      )}
     >
-      <span
-        className={cn(
-          "h-[34px] w-1.5 shrink-0 rounded",
-          claseColorDia(renta.fechaInicio),
-        )}
-      />
+      <span className="h-[34px] w-1.5 shrink-0 rounded bg-black/15 dark:bg-white/20" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold">{renta.cliente.nombre}</div>
         <div className="truncate text-xs text-[#94a3b8]">
@@ -125,18 +134,32 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header solo móvil (en desktop lo cubre el TopBar) */}
-      <div className="flex items-start justify-between gap-2 lg:hidden">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Hoy</h1>
-          <p className="text-sm text-muted-foreground first-letter:uppercase">
+      <div className="relative flex items-start justify-between gap-3 lg:hidden">
+        <Image
+          src="/logo-app.png"
+          alt="ClimaXpress"
+          width={1290}
+          height={842}
+          priority
+          className="pointer-events-none absolute top-0 left-1/2 h-11 w-auto -translate-x-1/2 opacity-90"
+        />
+        <div className="relative">
+          <div className="text-sm font-semibold text-muted-foreground">
+            {saludoDeHoy()}
+          </div>
+          <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-[-0.02em]">
+            Hoy
+          </h1>
+          <div className="mt-0.5 text-[13.5px] font-medium text-muted-foreground first-letter:uppercase">
             {fechaLarga(hoy)}
-          </p>
+          </div>
         </div>
-        <Button asChild size="sm">
-          <Link href="/rentas/nueva">
-            <Plus className="size-4" /> Renta
-          </Link>
-        </Button>
+        <Link
+          href="/rentas/nueva"
+          className="relative mt-1.5 flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_var(--primary)] transition-transform active:scale-90"
+        >
+          <Plus className="size-[22px]" strokeWidth={2.4} />
+        </Link>
       </div>
 
       {/* Único punto que alcanzan los dos roles para activar avisos. */}
@@ -153,23 +176,24 @@ export default async function DashboardPage() {
           icono={<Truck className="size-5" />}
           valor={entregas.length}
           label="Entregas hoy"
-          bg="#e2edfb"
-          fg="#2b5a9c"
+          bg="var(--kpi1a)"
+          fg="var(--kpi1b)"
         />
         <KPI
           icono={<PackageOpen className="size-5" />}
           valor={recolecciones.length}
           label="Recolecciones"
-          bg="#dff0fb"
-          fg="#1f6fb0"
+          bg="var(--kpi2a)"
+          fg="var(--kpi2b)"
         />
         {esAdmin && (
           <KPI
             icono={<Wallet className="size-5" />}
             valor={pesos(porCobrar)}
             label="Por cobrar"
-            bg="#fde9e5"
-            fg="#c0392b"
+            bg="var(--kpi3a)"
+            fg="var(--kpi3b)"
+            wide
           />
         )}
       </div>
@@ -237,7 +261,7 @@ export default async function DashboardPage() {
               <Titulo icono={null} n={manana.length}>
                 Mañana
               </Titulo>
-              <Card className="py-0">
+              <Card className="gap-0 py-0">
                 {manana.map((r) => (
                   <FilaCompacta
                     key={r.id}
@@ -264,7 +288,7 @@ export default async function DashboardPage() {
               >
                 Saldos pendientes
               </Titulo>
-              <Card className="py-0">
+              <Card className="gap-0 py-0">
                 {saldos.slice(0, 8).map(({ renta, saldo }) => (
                   <FilaCompacta
                     key={renta.id}

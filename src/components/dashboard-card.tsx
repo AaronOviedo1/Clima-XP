@@ -76,14 +76,10 @@ export function DashboardCard({
     return `${saludo}, ya vamos en camino a entregarle ${equipo}.`;
   }
 
-  // Al marcar "En ruta": abrimos WhatsApp con el mensaje listo y cambiamos el
-  // estado. El window.open va SÍNCRONO dentro del gesto de click (después de un
-  // await los navegadores móviles lo bloquean como pop-up).
-  function enRuta() {
-    const url = linkWhatsApp(r.telefono, mensajeEnRuta());
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-    accion("EN_RUTA");
-  }
+  // Enlace de WhatsApp con el aviso "vamos en camino". Se abre como un <a>
+  // real (no window.open, que la PWA instalada en iOS bloquea en silencio);
+  // el cambio de estado se dispara en el onClick del propio enlace.
+  const urlEnRuta = linkWhatsApp(r.telefono, mensajeEnRuta());
 
   // Entregar pregunta primero qué accesorios se dejaron (marcarEntregada los
   // registra); el resto de transiciones son de un tap directo.
@@ -168,14 +164,37 @@ export function DashboardCard({
           )}
           {!soloLectura && !hecha && r.estado === "CONFIRMADA" && (
             <>
-              <Button
-                variant="secondary"
-                className="h-11 flex-1"
-                disabled={pending}
-                onClick={enRuta}
-              >
-                <Truck className="size-4" /> En ruta
-              </Button>
+              {urlEnRuta ? (
+                <Button
+                  asChild
+                  variant="secondary"
+                  className={cn("h-11 flex-1", pending && "pointer-events-none opacity-50")}
+                >
+                  <a
+                    href={urlEnRuta}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      if (pending) {
+                        e.preventDefault();
+                        return;
+                      }
+                      accion("EN_RUTA");
+                    }}
+                  >
+                    <Truck className="size-4" /> En ruta
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="h-11 flex-1"
+                  disabled={pending}
+                  onClick={() => accion("EN_RUTA")}
+                >
+                  <Truck className="size-4" /> En ruta
+                </Button>
+              )}
               <Button
                 className="h-11 flex-1"
                 disabled={pending}

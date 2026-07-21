@@ -19,6 +19,33 @@ export type ParadaRuta = {
   lng?: number | null;
 };
 
+// URL para incrustar (<iframe>) un mapa de Google con la ruta del día.
+// Usa el embed clásico (output=embed), que NO requiere API key ni la expone en
+// el cliente. Devuelve null si no hay paradas.
+export function embedRutaMaps(
+  paradas: ParadaRuta[],
+  origen?: ParadaRuta,
+): string | null {
+  if (paradas.length === 0) return null;
+  const punto = (p: ParadaRuta) =>
+    p.lat != null && p.lng != null ? `${p.lat},${p.lng}` : p.direccion;
+
+  // El embed clásico se satura con demasiadas paradas: se limita a 9.
+  const lote = paradas.slice(0, 9);
+  const params = new URLSearchParams({ output: "embed" });
+
+  if (origen) {
+    params.set("saddr", punto(origen));
+    params.set("daddr", lote.map(punto).join(" to:"));
+  } else if (lote.length === 1) {
+    params.set("q", punto(lote[0]));
+  } else {
+    params.set("saddr", punto(lote[0]));
+    params.set("daddr", lote.slice(1).map(punto).join(" to:"));
+  }
+  return `https://maps.google.com/maps?${params.toString()}`;
+}
+
 // Enlace de ruta con múltiples paradas (Google limita a ~10 waypoints por link).
 // Devuelve uno o más links; si hay más de 10 paradas, parte en varias rutas.
 export function linksRuta(

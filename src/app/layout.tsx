@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Manrope, Questrial, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 
 // Manrope es la tipografía de cuerpo/UI del diseño desktop; Questrial se
 // reserva para títulos grandes (--font-heading).
@@ -56,11 +57,14 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${manrope.variable} ${questrial.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        {children}
-        <Toaster position="top-center" duration={2000} />
+        <ThemeProvider>
+          {children}
+          <Toaster position="top-center" duration={2000} />
+        </ThemeProvider>
       </body>
     </html>
   );

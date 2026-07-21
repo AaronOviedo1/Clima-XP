@@ -42,7 +42,7 @@ export default async function ConfiguracionPage() {
 
   return (
     <div className="space-y-4 lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
-      <h1 className="text-2xl font-bold tracking-tight lg:hidden">
+      <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em] lg:hidden">
         Configuración
       </h1>
 

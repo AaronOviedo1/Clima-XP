@@ -209,7 +209,7 @@ export default async function InventarioPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Inventario</h1>
+      <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em] lg:hidden">Inventario</h1>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="#e2edfb" fg="#2b5a9c" />

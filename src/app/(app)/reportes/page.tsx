@@ -76,7 +76,7 @@ export default async function ReportesPage({
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Reportes</h1>
+      <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em] lg:hidden">Reportes</h1>
 
       {/* Selector de periodo */}
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">

@@ -38,7 +38,7 @@ export default async function CalendarioPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight lg:hidden">Calendario</h1>
+      <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em] lg:hidden">Calendario</h1>
 
       {/* Navegación de mes (+ leyenda a la derecha en desktop) */}
       <div className="flex items-center gap-3.5">
