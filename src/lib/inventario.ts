@@ -56,6 +56,10 @@ export async function datosInventario() {
     (a, m) => a + m.unidades.filter((u) => u.estado === "MANTENIMIENTO").length,
     0,
   );
+  const rentadas = modelos.reduce(
+    (a, m) => a + m.unidades.filter((u) => u.estado === "RENTADA").length,
+    0,
+  );
   const tambosLlenos = accesorios.filter(
     (a) => a.tipo === "TAMBO_GAS" && a.estadoTambo === "LLENO",
   ).length;
@@ -64,7 +68,7 @@ export async function datosInventario() {
     modelos,
     accesorios,
     mantenimientos,
-    kpis: { totalUnidades, disponibles, enMantenimiento, tambosLlenos },
+    kpis: { totalUnidades, disponibles, enMantenimiento, rentadas, tambosLlenos },
   };
 }
 

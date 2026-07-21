@@ -1,4 +1,4 @@
-import { Package, Droplets, Wrench, CheckCircle2, Cable, Flame } from "lucide-react";
+import { Package, Droplets, Wrench, CheckCircle2, Cable, Flame, ChevronDown, AlertTriangle } from "lucide-react";
 import {
   datosInventario,
   conteoPorEstado,
@@ -139,6 +139,20 @@ function Variantes({ specs }: { specs: unknown }) {
   );
 }
 
+// KPI móvil: número grande de color + etiqueta, sin ícono (estilo iOS del mockup).
+function KpiMovil({ valor, label, color }: { valor: number; label: string; color?: string }) {
+  return (
+    <Card className="items-center gap-1 py-4 text-center">
+      <div className={`text-[26px] leading-none font-extrabold tabular-nums ${color ?? ""}`}>
+        {valor}
+      </div>
+      <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
+    </Card>
+  );
+}
+
+const TIPO_LABEL: Record<string, string> = { AEROCOOLER: "Aerocooler", CALENTON: "Calentón" };
+
 export default async function InventarioPage() {
   const { modelos, accesorios, mantenimientos, kpis } = await datosInventario();
 
@@ -207,10 +221,211 @@ export default async function InventarioPage() {
     );
   };
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em] lg:hidden">Inventario</h1>
+  // Tarjeta de modelo móvil (mockup iOS): nombre, tipo · precio, X/Y disponibles y
+  // barra de progreso; se expande para gestionar unidades y precios.
+  const ModeloCardMovil = ({ m }: { m: (typeof modelos)[number] }) => {
+    const total = m.unidades.length;
+    const disp = m.unidades.filter((u) => u.estado === "DISPONIBLE").length;
+    const pct = total ? Math.round((disp / total) * 100) : 0;
+    const esAero = m.tipo === "AEROCOOLER";
+    return (
+      <Card className="gap-0 py-0">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none flex-col gap-3 p-4">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[17px] leading-tight font-bold">{m.nombre}</div>
+                <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">
+                  {TIPO_LABEL[m.tipo] ?? m.tipo} · {pesos(m.precioDia)}/día
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="leading-none">
+                  <span className="text-xl font-extrabold tabular-nums">{disp}</span>
+                  <span className="text-base font-semibold text-muted-foreground">/{total}</span>
+                </div>
+                <div className="mt-0.5 text-[11.5px] font-medium text-muted-foreground">
+                  disponibles
+                </div>
+              </div>
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${pct}%`, background: esAero ? "var(--primary)" : "#f5a623" }}
+              />
+            </div>
+          </summary>
+          <div className="space-y-3 border-t px-4 pt-3 pb-4">
+            <Specs specs={m.specs} />
+            <Variantes specs={m.specs} />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[13px] font-medium text-muted-foreground">
+                {m.precioDia3Mas ? `3+: ${pesos(m.precioDia3Mas)}` : "Precios"}
+              </span>
+              <PreciosDialog
+                modelo={{
+                  id: m.id,
+                  nombre: m.nombre,
+                  precioDia: m.precioDia,
+                  precioDia3Mas: m.precioDia3Mas,
+                }}
+              />
+            </div>
+            <Separator />
+            <div className="flex flex-wrap gap-1.5">
+              {m.unidades.map((u) => (
+                <UnidadDialog
+                  key={u.id}
+                  unidad={{ id: u.id, codigo: u.codigo, estado: u.estado, notas: u.notas }}
+                />
+              ))}
+              <NuevaUnidadDialog
+                modeloId={m.id}
+                modeloNombre={m.nombre}
+                codigoSugerido={siguienteCodigo(
+                  m.unidades.map((u) => u.codigo),
+                  m.nombre,
+                )}
+              />
+            </div>
+          </div>
+        </details>
+      </Card>
+    );
+  };
 
+  const codigosMantenimiento = mantenimientos.map((mt) => mt.unidad.codigo);
+
+  return (
+    <>
+      {/* ---------- MÓVIL (estilo iOS del mockup) ---------- */}
+      <div className="space-y-6 lg:hidden">
+        <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em]">Inventario</h1>
+
+        <div className="grid grid-cols-3 gap-3">
+          <KpiMovil valor={kpis.totalUnidades} label="Unidades" />
+          <KpiMovil valor={kpis.disponibles} label="Disponibles" color="text-emerald-600 dark:text-emerald-500" />
+          <KpiMovil valor={kpis.rentadas} label="Rentadas" color="text-[#ea6a2e] dark:text-[#f4a05a]" />
+        </div>
+
+        <section className="space-y-3">
+          <h2 className="px-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">
+            Modelos
+          </h2>
+          {modelos.map((m) => (
+            <ModeloCardMovil key={m.id} m={m} />
+          ))}
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+              Accesorios
+            </h2>
+            <div className="flex gap-2">
+              <AccesoriosDialog
+                accesorios={accesorios.map((a) => ({
+                  id: a.id,
+                  tipo: a.tipo,
+                  descripcion: a.descripcion,
+                  codigo: a.codigo,
+                  estadoTambo: a.estadoTambo,
+                }))}
+              />
+              <NuevoAccesorioDialog />
+            </div>
+          </div>
+          <Card className="gap-0 py-0">
+            <div className="flex items-center gap-3 p-4">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e2edfb] text-[#2b5a9c] dark:bg-[#1b2f4d] dark:text-[#9cc3f2]">
+                <Cable className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">Mangueras 10 m</div>
+                <div className="text-[13px] text-muted-foreground">Conexión de agua</div>
+              </div>
+              <div className="text-xl font-extrabold tabular-nums">{mangueras.length}</div>
+            </div>
+            <div className="flex items-center gap-3 border-t p-4">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#dff0fb] text-[#1f6fb0] dark:bg-[#16324a] dark:text-[#7fc4ee]">
+                <Cable className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">Extensiones</div>
+                <div className="text-[13px] text-muted-foreground">
+                  {["5", "10", "15", "45"]
+                    .map((metros) => {
+                      const n = extensiones.filter((e) => e.descripcion.includes(`${metros}m`)).length;
+                      return n ? `${n}×${metros}m` : null;
+                    })
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </div>
+              </div>
+              <div className="text-xl font-extrabold tabular-nums">{extensiones.length}</div>
+            </div>
+            <div className="flex items-center gap-3 border-t p-4">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#fde9e5] text-[#c0392b] dark:bg-[#3a201c] dark:text-[#f19a8c]">
+                <Droplets className="size-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-bold">Tambos de gas 20 kg</div>
+                <div className="text-[13px] text-muted-foreground">
+                  {tambos.filter((t) => t.estadoTambo === "LLENO").length} llenos ·{" "}
+                  {tambos.filter((t) => t.estadoTambo === "VACIO").length} vacíos ·{" "}
+                  {tambos.filter((t) => t.estadoTambo === "EN_CLIENTE").length} en cliente
+                </div>
+              </div>
+              <div className="text-xl font-extrabold tabular-nums">{tambos.length}</div>
+            </div>
+          </Card>
+        </section>
+
+        {mantenimientos.length > 0 && (
+          <section className="space-y-3">
+            <Card className="gap-0 py-0">
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fde9e5] text-[#c0392b] dark:bg-[#3a201c] dark:text-[#f19a8c]">
+                    <AlertTriangle className="size-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-bold">
+                      {mantenimientos.length} en mantenimiento
+                    </div>
+                    <div className="truncate text-[13px] text-muted-foreground">
+                      {codigosMantenimiento.join(" · ")}
+                    </div>
+                  </div>
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <ul className="border-t">
+                  {mantenimientos.map((mt) => (
+                    <li
+                      key={mt.id}
+                      className="flex items-center justify-between gap-2 border-t px-4 py-3 text-sm first:border-t-0"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-semibold">{mt.unidad.codigo}</span>{" "}
+                        <span className="text-muted-foreground">{mt.descripcion}</span>
+                        {mt.costo != null && (
+                          <span className="ml-1 text-muted-foreground">· {pesos(mt.costo)}</span>
+                        )}
+                      </div>
+                      <ResolverMantenimientoButton id={mt.id} />
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </Card>
+          </section>
+        )}
+      </div>
+
+      {/* ---------- ESCRITORIO ---------- */}
+      <div className="hidden space-y-6 lg:block">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="#e2edfb" fg="#2b5a9c" />
         <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="#e7f6ec" fg="#1c8a4b" />
@@ -320,6 +535,7 @@ export default async function InventarioPage() {
         </section>
       )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
