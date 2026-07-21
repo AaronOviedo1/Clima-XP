@@ -10,7 +10,7 @@ import type { TarjetaRenta } from "@/lib/dashboard";
 import { ENTREGA_HECHA, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
 import { linkMapsPunto } from "@/lib/maps";
-import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
+import { formatoTelefono, paraWhatsApp, linkWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DialogoEntrega } from "@/components/dialogo-entrega";
@@ -57,6 +57,32 @@ export function DashboardCard({
         router.refresh();
       }
     });
+  }
+
+  // Aviso al cliente de que ya vamos en camino. El saludo se ajusta a la hora
+  // del dispositivo y la palabra del equipo al tipo rentado.
+  function mensajeEnRuta() {
+    const h = new Date().getHours();
+    const saludo = h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+    const soloCalenton =
+      r.tiposEquipo.length === 1 && r.tiposEquipo[0] === "CALENTON";
+    const soloCooler =
+      r.tiposEquipo.length === 1 && r.tiposEquipo[0] === "AEROCOOLER";
+    const equipo = soloCalenton
+      ? "su calentón"
+      : soloCooler
+        ? "su aerocooler"
+        : "su equipo";
+    return `${saludo}, ya vamos en camino a entregarle ${equipo}.`;
+  }
+
+  // Al marcar "En ruta": abrimos WhatsApp con el mensaje listo y cambiamos el
+  // estado. El window.open va SÍNCRONO dentro del gesto de click (después de un
+  // await los navegadores móviles lo bloquean como pop-up).
+  function enRuta() {
+    const url = linkWhatsApp(r.telefono, mensajeEnRuta());
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    accion("EN_RUTA");
   }
 
   // Entregar pregunta primero qué accesorios se dejaron (marcarEntregada los
@@ -146,7 +172,7 @@ export function DashboardCard({
                 variant="secondary"
                 className="h-11 flex-1"
                 disabled={pending}
-                onClick={() => accion("EN_RUTA")}
+                onClick={enRuta}
               >
                 <Truck className="size-4" /> En ruta
               </Button>

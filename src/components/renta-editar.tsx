@@ -67,6 +67,7 @@ export async function RentaEditar({
         iniciales: {
           clienteId: renta.clienteId,
           ventanaEntrega: renta.ventanaEntrega ?? "",
+          lugar: renta.lugar ?? "",
           direccion: renta.direccion,
           codigoAcceso: renta.codigoAcceso ?? "",
           ubicacionTexto:

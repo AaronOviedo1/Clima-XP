@@ -170,7 +170,10 @@ export const TRANSICIONES: Record<EstadoRentaStr, EstadoRentaStr[]> = {
   CONFIRMADA: ["EN_RUTA", "CANCELADA"],
   EN_RUTA: ["ENTREGADA", "CANCELADA"],
   ENTREGADA: ["RECOGIDA"],
-  RECOGIDA: ["CONCLUIDA"],
+  // RECOGIDA es terminal: recoger el equipo da por concluida la renta. El estado
+  // CONCLUIDA se conserva solo para las rentas históricas migradas del Excel; ya
+  // no se llega a él desde el flujo (no hay paso "Concluir" de más).
+  RECOGIDA: [],
   CONCLUIDA: [],
   CANCELADA: [],
 };

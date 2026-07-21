@@ -36,3 +36,16 @@ export function paraWhatsApp(e164: string | null | undefined): string | null {
   const m = e164.match(/^\+?(\d{12})$/);
   return m ? m[1] : null;
 }
+
+// Enlace a WhatsApp (wa.me), con mensaje pre-cargado opcional.
+// Devuelve null si el teléfono no es válido.
+export function linkWhatsApp(
+  e164: string | null | undefined,
+  texto?: string,
+): string | null {
+  const wa = paraWhatsApp(e164);
+  if (!wa) return null;
+  return texto
+    ? `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`
+    : `https://wa.me/${wa}`;
+}

@@ -56,6 +56,20 @@ const METODOS = [
   { v: "OTRO", l: "Otro" },
 ];
 
+// Sugerencias para el autocompletado del lugar (texto libre: se puede escribir
+// cualquier otra cosa). Ordenadas de lo más frecuente a lo menos.
+const LUGARES_FRECUENTES = [
+  "Casa",
+  "Escuela",
+  "Restaurante",
+  "Local de eventos",
+  "Salón de fiestas",
+  "Oficina",
+  "Bodega",
+  "Iglesia",
+  "Taller",
+];
+
 // El calendario trabaja con Date locales; las fechas del formulario son "yyyy-MM-dd".
 function fechaLocalDesdeInput(yyyyMmDd: string): Date {
   const [y, m, d] = yyyyMmDd.split("-").map(Number);
@@ -71,6 +85,7 @@ export type RentaEdicion = {
   iniciales: {
     clienteId: string;
     ventanaEntrega: string;
+    lugar: string;
     direccion: string;
     codigoAcceso: string;
     ubicacionTexto: string;
@@ -152,6 +167,7 @@ export function RentaForm({
   const [sel, setSel] = useState<Set<string>>(new Set(ini?.unidadIds ?? []));
 
   const [direccion, setDireccion] = useState(ini?.direccion ?? "");
+  const [lugar, setLugar] = useState(ini?.lugar ?? "");
   const [ventanaEntrega, setVentanaEntrega] = useState(ini?.ventanaEntrega ?? "");
   // Al editar, refleja si de verdad no se había especificado; al crear, se deja
   // libre para escribir (recién ahí se decide si se especifica o no).
@@ -410,6 +426,7 @@ export function RentaForm({
         fechaInicio,
         fechaFin,
         ventanaEntrega: ventanaEntrega || null,
+        lugar: lugar.trim() || null,
         direccion,
         codigoAcceso: codigoAcceso || null,
         lat: ubic.lat,
@@ -619,6 +636,23 @@ export function RentaForm({
 
       {/* Dirección + domicilio */}
       <section className="space-y-3">
+        <div className="space-y-2">
+          <Label htmlFor="lugar">Lugar</Label>
+          <Input
+            id="lugar"
+            list="lugares-frecuentes"
+            value={lugar}
+            placeholder="Casa, escuela, restaurante…"
+            className="h-11"
+            autoComplete="off"
+            onChange={(e) => setLugar(e.target.value)}
+          />
+          <datalist id="lugares-frecuentes">
+            {LUGARES_FRECUENTES.map((l) => (
+              <option key={l} value={l} />
+            ))}
+          </datalist>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="dir">Dirección</Label>
           <Textarea

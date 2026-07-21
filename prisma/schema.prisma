@@ -170,6 +170,7 @@ model Renta {
   fechaFin       DateTime @db.Date // día de recolección
   ventanaEntrega String? // "11:00 a 3:00 PM"
 
+  lugar        String? // tipo de lugar: "Casa", "Escuela", "Restaurante"… (texto libre)
   direccion    String
   lat          Float?
   lng          Float?

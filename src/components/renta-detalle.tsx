@@ -108,6 +108,7 @@ export function RentaDetalle({
           <Fila label="Entrega" value={fechaLarga(renta.fechaInicio)} />
           <Fila label="Recolección" value={fechaLarga(renta.fechaFin)} />
           {renta.ventanaEntrega && <Fila label="Ventana" value={renta.ventanaEntrega} />}
+          {renta.lugar && <Fila label="Lugar" value={renta.lugar} />}
           <div>
             <p className="text-muted-foreground">Dirección</p>
             <p className="whitespace-pre-wrap">{renta.direccion}</p>
