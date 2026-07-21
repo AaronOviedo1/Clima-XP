@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Plus, Search, MessageCircle } from "lucide-react";
+import { Plus, MessageCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { normalizarTelefono, formatoTelefono, linkWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Buscador } from "@/components/buscador";
 import { Card } from "@/components/ui/card";
 import { DistintivoEquipos } from "@/components/distintivo-equipos";
 import { tiposDeEquipoDeRentas } from "@/lib/rentas";
@@ -67,7 +67,6 @@ export default async function ClientesPage({
       },
     },
     orderBy: { nombre: "asc" },
-    take: 100,
   });
 
   return (
@@ -83,15 +82,9 @@ export default async function ClientesPage({
       </div>
 
       <div className="flex items-center gap-2">
-        <form className="relative flex-1 lg:hidden">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            name="q"
-            defaultValue={busqueda}
-            placeholder="Buscar cliente o teléfono"
-            className="h-11 pl-9"
-          />
-        </form>
+        <div className="flex-1 lg:hidden">
+          <Buscador placeholder="Buscar cliente o teléfono" />
+        </div>
         <Button asChild size="sm" className="hidden lg:flex">
           <Link href="/clientes/nuevo">
             <Plus className="size-4" /> Nuevo cliente

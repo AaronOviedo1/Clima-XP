@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, TipoEquipo } from "@prisma/client";
 import { diasDeRenta } from "@/lib/fechas";
 
 // Include estándar para el detalle de una renta.
@@ -87,6 +87,20 @@ export function equiposPorModelo(
   return [...conteo]
     .map(([nombre, cantidad]) => ({ nombre, cantidad }))
     .sort((a, b) => b.cantidad - a.cantidad || a.nombre.localeCompare(b.nombre));
+}
+
+// Tipos de equipo presentes en el historial de rentas de un cliente, para el
+// distintivo del listado. Devuelve AEROCOOLER antes que CALENTON (orden estable);
+// vacío si el cliente no ha rentado nada.
+export function tiposDeEquipoDeRentas(
+  rentas: { unidades: { unidad: { modelo: { tipo: TipoEquipo } } }[] }[]
+): TipoEquipo[] {
+  const presentes = new Set<TipoEquipo>();
+  for (const r of rentas)
+    for (const u of r.unidades) presentes.add(u.unidad.modelo.tipo);
+  return (["AEROCOOLER", "CALENTON"] as TipoEquipo[]).filter((t) =>
+    presentes.has(t)
+  );
 }
 
 export type TotalesRenta = {

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Bell, Plus, Search } from "lucide-react";
 
 // Título y subtítulo por sección (el diseño los muestra en el header claro).
@@ -37,13 +38,44 @@ export function TopBar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [titulo, subtituloBase] = metaDeRuta(pathname);
   const subtitulo = pathname === "/" ? fechaHoy : subtituloBase;
 
-  function buscar(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const q = new FormData(e.currentTarget).get("q")?.toString().trim() ?? "";
-    router.push(q ? `/rentas?q=${encodeURIComponent(q)}` : "/rentas");
+  // El buscador filtra la sección actual si soporta ?q= (Clientes o Rentas);
+  // desde cualquier otra pantalla busca rentas por defecto.
+  const base = pathname.startsWith("/clientes") ? "/clientes" : "/rentas";
+  const yaEnBase = pathname.startsWith(base);
+
+  const [texto, setTexto] = useState(searchParams.get("q") ?? "");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Al cambiar de sección reflejamos el ?q= de la nueva ruta en el input, sin un
+  // effect (patrón de "ajustar estado en render" recomendado por React).
+  const [seccionPrevia, setSeccionPrevia] = useState(pathname);
+  if (pathname !== seccionPrevia) {
+    setSeccionPrevia(pathname);
+    setTexto(searchParams.get("q") ?? "");
+  }
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  function aplicar(q: string) {
+    const destino = q.trim()
+      ? `${base}?q=${encodeURIComponent(q.trim())}`
+      : base;
+    // En la misma sección reemplazamos (sin ensuciar el historial ni saltar el
+    // scroll); desde otra pantalla navegamos una vez.
+    if (yaEnBase) router.replace(destino, { scroll: false });
+    else router.push(destino);
+  }
+
+  function onChange(q: string) {
+    setTexto(q);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => aplicar(q), 350);
   }
 
   return (
@@ -61,14 +93,20 @@ export function TopBar({
 
       <div className="flex-1" />
 
-      <form onSubmit={buscar} className="relative w-[280px]">
+      <div className="relative w-[280px]">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#94a3b8]" />
         <input
-          name="q"
-          placeholder="Buscar cliente, teléfono, equipo…"
-          className="h-10 w-full rounded-xl border border-[#e0e8f3] bg-[#f5f8fc] pr-3 pl-[38px] text-[13.5px] outline-none focus:border-primary focus:bg-white focus:ring-[3px] focus:ring-primary/15"
+          type="search"
+          value={texto}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={
+            base === "/clientes"
+              ? "Buscar cliente o teléfono…"
+              : "Buscar cliente, teléfono, equipo…"
+          }
+          className="h-10 w-full rounded-xl border border-[#e0e8f3] bg-[#f5f8fc] pr-3 pl-[38px] text-[13.5px] outline-none focus:border-primary focus:bg-white focus:ring-[3px] focus:ring-primary/15 [&::-webkit-search-cancel-button]:hidden"
         />
-      </form>
+      </div>
 
       <Link
         href="/rentas/nueva"
