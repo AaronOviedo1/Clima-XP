@@ -136,12 +136,12 @@ export default async function DashboardPage() {
       {/* Header solo móvil (en desktop lo cubre el TopBar) */}
       <div className="relative flex items-start justify-between gap-3 lg:hidden">
         <Image
-          src="/logo-app.png"
+          src="/HD_sinFondo.png"
           alt="ClimaXpress"
-          width={1290}
-          height={842}
+          width={1449}
+          height={1428}
           priority
-          className="pointer-events-none absolute top-0 left-1/2 h-11 w-auto -translate-x-1/2 opacity-90"
+          className="pointer-events-none absolute top-0 left-1/2 h-12 w-auto -translate-x-1/2 opacity-90"
         />
         <div className="relative">
           <div className="text-sm font-semibold text-muted-foreground">
