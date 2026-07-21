@@ -168,6 +168,18 @@ export const ESTADO_RENTA_META: Record<
   CANCELADA: { label: "Cancelada", badge: "destructive" },
 };
 
+// Chip de estado coloreado (fondo suave + texto del color) para las listas y el
+// detalle, estilo iOS del diseño.
+export const ESTADO_CHIP: Record<string, string> = {
+  COTIZADA: "bg-muted text-muted-foreground",
+  CONFIRMADA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
+  EN_RUTA: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
+  ENTREGADA: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
+  RECOGIDA: "bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300",
+  CONCLUIDA: "bg-muted text-muted-foreground",
+  CANCELADA: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300",
+};
+
 export const ESTADOS_RENTA = [
   "COTIZADA",
   "CONFIRMADA",

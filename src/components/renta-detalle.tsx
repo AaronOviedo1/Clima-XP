@@ -1,24 +1,33 @@
 import Link from "next/link";
-import { ChevronLeft, MapPin, MessageCircle, Pencil } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronDown,
+  MapPin,
+  MessageCircle,
+  Pencil,
+  Calendar,
+  Truck,
+  Navigation,
+} from "lucide-react";
 import {
   totalesDeRenta,
   ESTADO_RENTA_META,
+  ESTADO_CHIP,
   ESTADOS_EDITABLES,
   type EstadoRentaStr,
   type RentaCompleta,
 } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
-import { fechaLarga } from "@/lib/fechas";
+import { fechaCorta } from "@/lib/fechas";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { RentaAcciones } from "@/components/renta-acciones";
 import { RentaCorregirEstado } from "@/components/renta-corregir-estado";
 import { PagoForm } from "@/components/pago-form";
 import { PagoEliminarBoton } from "@/components/pago-eliminar-boton";
-import { cn } from "@/lib/utils";
 
 const METODO_LABEL: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -36,13 +45,61 @@ function Fila({ label, value, fuerte }: { label: string; value: string; fuerte?:
   );
 }
 
+// Fila de la tarjeta de info (ícono + etiqueta + valor).
+function FilaInfo({
+  icono,
+  label,
+  value,
+  borde = true,
+}: {
+  icono: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  borde?: boolean;
+}) {
+  return (
+    <div className={"flex items-center gap-3 px-4 py-3.5" + (borde ? " border-b" : "")}>
+      <span className="shrink-0 text-muted-foreground">{icono}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
+        <div className="mt-0.5 text-[14.5px] font-semibold break-words">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta colapsable (cerrada por defecto): el título es el <summary>.
+function Colapsable({ titulo, children }: { titulo: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3.5">
+          <span className="text-base font-semibold">{titulo}</span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t px-4 pt-3 pb-4">{children}</div>
+      </details>
+    </Card>
+  );
+}
+
+// Tile de importe (Total / Pagado / Saldo) — estilo iOS.
+function Tile({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="flex-1 rounded-2xl bg-card p-3 shadow-sm">
+      <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
+      <div className={`mt-0.5 text-[19px] font-extrabold tracking-tight tabular-nums ${color ?? ""}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 export function RentaDetalle({
   renta,
-  enModal = false,
   esAdmin = false,
 }: {
   renta: RentaCompleta;
-  enModal?: boolean;
   esAdmin?: boolean;
 }) {
   const t = totalesDeRenta(renta);
@@ -54,91 +111,157 @@ export function RentaDetalle({
       ? `${renta.lat},${renta.lng}`
       : encodeURIComponent(renta.direccion);
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+  const editable = ESTADOS_EDITABLES.includes(renta.estado as EstadoRentaStr);
+
+  // Resumen de equipos ("2 × Eco-Fresco, 1 × Turbo-Frío") y sus códigos.
+  const porModelo = new Map<string, number>();
+  for (const u of renta.unidades)
+    porModelo.set(u.unidad.modelo.nombre, (porModelo.get(u.unidad.modelo.nombre) ?? 0) + 1);
+  const equiposResumen = [...porModelo.entries()].map(([n, c]) => `${c} × ${n}`).join(", ");
+  const codigos = renta.unidades.map((u) => u.unidad.codigo).join(", ");
+  const periodo = `${fechaCorta(renta.fechaInicio)} – ${fechaCorta(renta.fechaFin)} · ${t.dias}d`;
 
   return (
     <div className="space-y-4">
-      <div className={cn("flex items-center gap-2", enModal && "pr-8")}>
-        {!enModal && (
-          <Button asChild variant="ghost" size="icon" aria-label="Volver">
-            <Link href="/rentas">
-              <ChevronLeft className="size-5" />
-            </Link>
-          </Button>
-        )}
-        <div className="flex-1">
-          <Link
-            href={`/clientes/${renta.clienteId}`}
-            className="text-xl font-bold tracking-tight hover:underline"
-          >
-            {renta.cliente.nombre}
-          </Link>
-          <div className="text-sm text-muted-foreground">
-            {formatoTelefono(renta.cliente.telefono)}
-          </div>
-        </div>
-        {ESTADOS_EDITABLES.includes(renta.estado as EstadoRentaStr) && (
+      {/* Header móvil (sticky, blur): volver + WhatsApp */}
+      <div className="sticky top-0 z-20 -mx-5 -mt-[calc(env(safe-area-inset-top)+14px)] flex items-center gap-2 border-b bg-background/80 px-3 pt-[calc(env(safe-area-inset-top)+10px)] pb-2.5 backdrop-blur-xl lg:hidden">
+        <Link
+          href="/rentas"
+          className="flex items-center gap-0.5 px-2 py-1.5 text-[16px] font-semibold text-primary active:opacity-50"
+        >
+          <ChevronLeft className="size-[22px]" /> Rentas
+        </Link>
+        <div className="flex-1" />
+        {editable && (
           <Button asChild variant="ghost" size="icon" aria-label="Editar renta">
             <Link href={`/rentas/${renta.id}/editar`}>
               <Pencil className="size-4" />
             </Link>
           </Button>
         )}
-        <Badge variant={meta.badge}>{meta.label}</Badge>
+        {wa && (
+          <a
+            href={`https://wa.me/${wa}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="WhatsApp"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-emerald-600 active:scale-90 dark:text-emerald-500"
+          >
+            <MessageCircle className="size-[18px]" />
+          </a>
+        )}
       </div>
 
+      {/* Header desktop: volver + editar */}
+      <div className="hidden items-center gap-2 lg:flex">
+        <Button asChild variant="ghost" size="sm" className="text-primary">
+          <Link href="/rentas">
+            <ChevronLeft className="size-5" /> Rentas
+          </Link>
+        </Button>
+        <div className="flex-1" />
+        {editable && (
+          <Button asChild variant="ghost" size="icon" aria-label="Editar renta">
+            <Link href={`/rentas/${renta.id}/editar`}>
+              <Pencil className="size-4" />
+            </Link>
+          </Button>
+        )}
+      </div>
+
+      {/* Hero: cliente + teléfono a la izquierda; estado y corregir a la derecha */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            href={`/clientes/${renta.clienteId}`}
+            className="block text-[28px] leading-[1.1] font-extrabold tracking-[-0.02em] hover:underline"
+          >
+            {renta.cliente.nombre}
+          </Link>
+          <div className="mt-1 text-[15px] text-muted-foreground">
+            {formatoTelefono(renta.cliente.telefono)}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span
+            className={`inline-block rounded-lg px-2.5 py-1 text-[11px] font-extrabold tracking-wide uppercase ${ESTADO_CHIP[renta.estado] ?? "bg-muted text-muted-foreground"}`}
+          >
+            {meta.label}
+          </span>
+          {esAdmin && (
+            <RentaCorregirEstado rentaId={renta.id} estado={renta.estado as EstadoRentaStr} />
+          )}
+        </div>
+      </div>
+
+      {/* Tiles de importe (solo admin) */}
       {esAdmin && (
-        <div className="flex justify-end">
-          <RentaCorregirEstado rentaId={renta.id} estado={renta.estado as EstadoRentaStr} />
+        <div className="flex gap-3">
+          <Tile label="Total" value={pesos(t.total)} />
+          <Tile label="Pagado" value={pesos(t.pagadoConfirmado)} />
+          <Tile
+            label="Saldo"
+            value={pesos(t.saldo)}
+            color={t.saldo > 0 ? "text-amber-600 dark:text-amber-500" : "text-emerald-600 dark:text-emerald-500"}
+          />
         </div>
       )}
 
-      {/* Acciones de estado */}
+      {/* Acciones de estado (En ruta / Entregado / Recogido) */}
       <RentaAcciones
         rentaId={renta.id}
         estado={renta.estado as EstadoRentaStr}
         tiposEquipo={tiposEquipo}
       />
 
-      {/* Entrega */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Entrega</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <Fila label="Entrega" value={fechaLarga(renta.fechaInicio)} />
-          <Fila label="Recolección" value={fechaLarga(renta.fechaFin)} />
-          {renta.ventanaEntrega && <Fila label="Ventana" value={renta.ventanaEntrega} />}
-          {renta.lugar && <Fila label="Lugar" value={renta.lugar} />}
-          <div>
-            <p className="text-muted-foreground">Dirección</p>
-            <p className="whitespace-pre-wrap">{renta.direccion}</p>
-          </div>
-          {renta.codigoAcceso && <Fila label="Código de acceso" value={renta.codigoAcceso} />}
-          <div className="flex gap-2 pt-1">
-            <Button asChild variant="outline" size="sm" className="flex-1">
-              <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
-                <MapPin className="size-4" /> Maps
-              </a>
-            </Button>
-            {wa && (
-              <Button asChild variant="outline" size="sm" className="flex-1">
-                <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="size-4" /> WhatsApp
-                </a>
-              </Button>
-            )}
-          </div>
-        </CardContent>
+      {/* Tarjeta de info: dirección, periodo, equipo */}
+      <Card className="gap-0 overflow-hidden py-0">
+        <FilaInfo
+          icono={<MapPin className="size-[19px]" />}
+          label="Dirección"
+          value={<span className="whitespace-pre-wrap">{renta.direccion}</span>}
+        />
+        {renta.lugar && (
+          <FilaInfo icono={<MapPin className="size-[19px]" />} label="Lugar" value={renta.lugar} />
+        )}
+        <FilaInfo
+          icono={<Calendar className="size-[19px]" />}
+          label="Periodo"
+          value={periodo}
+        />
+        {renta.ventanaEntrega && (
+          <FilaInfo
+            icono={<Calendar className="size-[19px]" />}
+            label="Ventana de entrega"
+            value={renta.ventanaEntrega}
+          />
+        )}
+        <FilaInfo
+          icono={<Truck className="size-[19px]" />}
+          label="Equipo"
+          value={`${equiposResumen} · ${codigos}`}
+          borde={!!renta.codigoAcceso}
+        />
+        {renta.codigoAcceso && (
+          <FilaInfo
+            icono={<MapPin className="size-[19px]" />}
+            label="Código de acceso"
+            value={renta.codigoAcceso}
+            borde={false}
+          />
+        )}
       </Card>
 
+      {/* Cómo llegar */}
+      <Button asChild variant="secondary" className="h-12 w-full text-[15px] font-bold">
+        <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+          <Navigation className="size-[18px]" /> Cómo llegar
+        </a>
+      </Button>
+
       {/* Equipos */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            Equipos ({renta.unidades.length}) · {t.dias}d
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-sm">
+      <Colapsable titulo={`Equipos (${renta.unidades.length}) · ${t.dias}d`}>
+        <div className="space-y-1.5 text-sm">
           {renta.unidades.map((ru) => (
             <div key={ru.id} className="flex items-center justify-between">
               <span>
@@ -159,15 +282,12 @@ export function RentaDetalle({
               ))}
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </Colapsable>
 
       {/* Desglose */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Cuenta</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
+      <Colapsable titulo="Cuenta">
+        <div className="space-y-2">
           <Fila label={`Equipos (${t.dias}d)`} value={pesos(t.subtotalEquipos)} />
           {t.subtotalAccesorios > 0 && (
             <Fila label="Accesorios" value={pesos(t.subtotalAccesorios)} />
@@ -190,15 +310,12 @@ export function RentaDetalle({
               {pesos(t.saldo)}
             </span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Colapsable>
 
       {/* Pagos */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Pagos</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <Colapsable titulo="Pagos">
+        <div className="space-y-3">
           {renta.pagos.length > 0 && (
             <ul className="space-y-1.5 text-sm">
               {renta.pagos.map((p) => (
@@ -222,18 +339,13 @@ export function RentaDetalle({
           )}
           <Separator />
           <PagoForm rentaId={renta.id} saldo={t.saldo} />
-        </CardContent>
-      </Card>
+        </div>
+      </Colapsable>
 
       {renta.notas && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Notas</CardTitle>
-          </CardHeader>
-          <CardContent className="whitespace-pre-wrap text-sm text-muted-foreground">
-            {renta.notas}
-          </CardContent>
-        </Card>
+        <Colapsable titulo="Notas">
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground">{renta.notas}</p>
+        </Colapsable>
       )}
     </div>
   );

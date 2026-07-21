@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { BottomNav } from "@/components/bottom-nav";
@@ -30,7 +31,11 @@ export default async function AppLayout({
       <Sidebar nombre={nombre} esAdmin={esAdmin} authHabilitada={AUTH_HABILITADA} />
 
       <div className="flex min-w-0 flex-1 flex-col lg:h-dvh lg:overflow-hidden">
-        <TopBar esAdmin={esAdmin} fechaHoy={fechaHoy} />
+        {/* TopBar usa useSearchParams (buscador en vivo): el <Suspense> evita el
+            error de bailout a CSR al prerenderizar páginas no dinámicas. */}
+        <Suspense fallback={null}>
+          <TopBar esAdmin={esAdmin} fechaHoy={fechaHoy} />
+        </Suspense>
 
         <main className="flex-1 px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-28 md:px-8 lg:overflow-y-auto lg:px-[30px] lg:pt-7 lg:pb-7">
           <div className="mx-auto w-full max-w-3xl md:max-w-4xl lg:max-w-[1360px]">
