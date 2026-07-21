@@ -3,14 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, PackageCheck, PackageOpen, Truck } from "lucide-react";
-import type { DiaCalendario } from "@/lib/calendario";
+import type {
+  DiaCalendario,
+  ModeloCalendario,
+  RentaDia,
+} from "@/lib/calendario";
 import { ESTADO_RENTA_META } from "@/lib/rentas";
 import { fechaDesdeInput, fechaLarga } from "@/lib/fechas";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-const DIAS_SEMANA = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
+const DIAS_SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
 
 // Entregas y recolecciones programadas ese día (una renta puede contar en ambas
 // si se entrega y recoge el mismo día).
@@ -21,103 +26,265 @@ function agenda(d: DiaCalendario) {
   };
 }
 
-export function CalendarioMes({
-  dias,
-  hoy,
-}: {
-  dias: DiaCalendario[];
-  hoy: string;
-}) {
-  const [abierto, setAbierto] = useState<DiaCalendario | null>(null);
+// Ocupación del día: agotado si algún modelo se queda sin unidades libres,
+// parcial si hay ocupación sin agotar, libre si todo el equipo está disponible.
+type Ocupacion = "libre" | "parcial" | "agotado";
+function ocupacionDia(d: DiaCalendario, modelos: ModeloCalendario[]): Ocupacion {
+  let agotado = false;
+  let parcial = false;
+  for (const m of modelos) {
+    const libres = d.libresPorModelo[m.id] ?? m.total;
+    if (libres <= 0) agotado = true;
+    else if (libres < m.total) parcial = true;
+  }
+  return agotado ? "agotado" : parcial ? "parcial" : "libre";
+}
 
-  // Huecos al inicio para que el día 1 caiga bajo su día de la semana (lunes = 0)
-  // y al final para completar la última semana: la cuadrícula siempre cierra en
-  // múltiplos de 7.
+function equipoStr(r: RentaDia): string {
+  if (r.equipos.length === 0) return "Sin equipos";
+  if (r.equipos.length === 1)
+    return `${r.equipos[0].cantidad} × ${r.equipos[0].nombre}`;
+  const total = r.equipos.reduce((a, e) => a + e.cantidad, 0);
+  return `${total} equipos`;
+}
+
+const MESES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+const DIAS_NOMBRE = [
+  "domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado",
+];
+
+// Encabezado "HOY, 20 DE JULIO" / "MARTES, 22 DE JULIO".
+function tituloDia(fecha: string, hoy: string): string {
+  const dt = fechaDesdeInput(fecha);
+  const cola = `${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()]}`;
+  return (
+    fecha === hoy ? `Hoy, ${cola}` : `${DIAS_NOMBRE[dt.getUTCDay()]}, ${cola}`
+  ).toUpperCase();
+}
+
+function celdas(dias: DiaCalendario[]): (DiaCalendario | null)[] {
   const primero = fechaDesdeInput(dias[0].fecha);
   const huecoInicial = (primero.getUTCDay() + 6) % 7;
-  const celdas: (DiaCalendario | null)[] = [
+  const arr: (DiaCalendario | null)[] = [
     ...Array<null>(huecoInicial).fill(null),
     ...dias,
   ];
-  while (celdas.length % 7 !== 0) celdas.push(null);
+  while (arr.length % 7 !== 0) arr.push(null);
+  return arr;
+}
 
+// Etiqueta ENTREGA / RECOLECCIÓN / EN CURSO de una renta ese día.
+function EtiquetaEvento({ r }: { r: RentaDia }) {
+  if (r.entrega)
+    return (
+      <span className="shrink-0 rounded-md bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] px-2 py-1 text-[10.5px] font-extrabold tracking-wide text-primary uppercase">
+        Entrega
+      </span>
+    );
+  if (r.recoleccion)
+    return (
+      <span className="shrink-0 rounded-md bg-amber-500/15 px-2 py-1 text-[10.5px] font-extrabold tracking-wide text-amber-600 uppercase dark:text-amber-500">
+        Recolección
+      </span>
+    );
+  return (
+    <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-[10.5px] font-extrabold tracking-wide text-muted-foreground uppercase">
+      En curso
+    </span>
+  );
+}
+
+export function CalendarioMes({
+  dias,
+  modelos,
+  hoy,
+}: {
+  dias: DiaCalendario[];
+  modelos: ModeloCalendario[];
+  hoy: string;
+}) {
+  // Desktop: día abierto en diálogo. Móvil: día seleccionado para la lista.
+  const [abierto, setAbierto] = useState<DiaCalendario | null>(null);
+  const hoyDia = dias.find((d) => d.fecha === hoy) ?? null;
+  const [selFecha, setSelFecha] = useState<string | null>(hoyDia?.fecha ?? null);
+  const sel = dias.find((d) => d.fecha === selFecha) ?? hoyDia;
+
+  const grid = celdas(dias);
   const abiertoAgenda = abierto ? agenda(abierto) : null;
 
   return (
     <>
-      <div className="space-y-2">
-        {/* Días de la semana */}
-        <div className="grid grid-cols-7 gap-2">
-          {DIAS_SEMANA.map((d, i) => (
-            <div
-              key={i}
-              className="py-1 text-center text-[11.5px] font-extrabold tracking-wide text-[#94a3b8]"
-            >
-              {d}
-            </div>
-          ))}
+      {/* ===================== MÓVIL: ocupación + lista del día ===================== */}
+      <div className="space-y-4 lg:hidden">
+        <Card className="gap-0 py-3.5">
+          <div className="grid grid-cols-7">
+            {DIAS_SEMANA.map((d, i) => (
+              <div
+                key={i}
+                className="pb-2 text-center text-[11px] font-extrabold text-muted-foreground"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-y-1.5">
+            {grid.map((d, i) => {
+              if (!d) return <div key={`h-${i}`} className="h-11" />;
+              const esHoy = d.fecha === hoy;
+              const ocup = ocupacionDia(d, modelos);
+              const conRentas = d.rentas.length > 0;
+              return (
+                <div key={d.fecha} className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => conRentas && setSelFecha(d.fecha)}
+                    disabled={!conRentas}
+                    aria-label={`${d.dia}`}
+                    className={cn(
+                      "flex size-11 flex-col items-center justify-center gap-1 rounded-xl transition active:scale-95",
+                      ocup === "parcial" && "bg-amber-400/25",
+                      ocup === "agotado" && "bg-red-400/25",
+                      esHoy && "ring-2 ring-primary",
+                      d.fecha === selFecha && !esHoy && "ring-2 ring-primary/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-[14px] font-bold tabular-nums",
+                        ocup === "libre" && !esHoy
+                          ? "text-muted-foreground"
+                          : "text-foreground",
+                        esHoy && "text-primary",
+                      )}
+                    >
+                      {d.dia}
+                    </span>
+                    {conRentas && (
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          ocup === "agotado" ? "bg-red-500" : "bg-amber-500",
+                        )}
+                      />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Leyenda */}
+        <div className="flex gap-4 px-1">
+          <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+            <span className="size-3 rounded bg-amber-400/60" /> Ocupación parcial
+          </span>
+          <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground">
+            <span className="size-3 rounded bg-red-400/50" /> Agotado
+          </span>
         </div>
 
-        {/* Cuadrícula del mes */}
-        <div className="grid grid-cols-7 gap-2">
-          {celdas.map((d, i) => {
-            if (!d) return <div key={`hueco-${i}`} className="min-h-[104px]" />;
+        {/* Eventos del día seleccionado */}
+        {sel && (
+          <div>
+            <div className="mb-2.5 px-1 text-[12.5px] font-extrabold tracking-wide text-muted-foreground">
+              {tituloDia(sel.fecha, hoy)}
+            </div>
+            {sel.rentas.length === 0 ? (
+              <Card className="py-0">
+                <p className="px-4 py-5 text-center text-sm text-muted-foreground">
+                  Sin entregas ni recolecciones ese día.
+                </p>
+              </Card>
+            ) : (
+              <Card className="gap-0 py-0">
+                {sel.rentas.map((r) => (
+                  <Link
+                    key={r.id}
+                    href={`/rentas/${r.id}`}
+                    className="flex items-center gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 active:bg-muted"
+                  >
+                    <EtiquetaEvento r={r} />
+                    <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">
+                      {r.cliente}
+                    </span>
+                    <span className="shrink-0 text-[12.5px] font-semibold text-muted-foreground">
+                      {equipoStr(r)}
+                    </span>
+                  </Link>
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
+      </div>
 
-            const esHoy = d.fecha === hoy;
-            const { entregas, recolecciones } = agenda(d);
-            const conActividad = entregas > 0 || recolecciones > 0;
-
-            return (
-              <button
-                key={d.fecha}
-                type="button"
-                onClick={() => conActividad && setAbierto(d)}
-                disabled={!conActividad}
-                aria-label={`${d.dia}: ${entregas} entregas, ${recolecciones} recolecciones`}
-                className={cn(
-                  "flex min-h-[104px] flex-col gap-1.5 rounded-xl p-2 text-left transition",
-                  conActividad
-                    ? "cursor-pointer hover:brightness-[0.98]"
-                    : "cursor-default",
-                  esHoy
-                    ? "border-2 border-primary bg-[#f5f9ff]"
-                    : conActividad
-                      ? "border border-[#eef2f8] bg-card shadow-[0_6px_16px_-14px_rgba(20,38,63,.7)]"
-                      : "border border-[#eef2f8] bg-[#fbfcfe]",
-                )}
+      {/* ===================== DESKTOP: badges por día + diálogo ===================== */}
+      <Card className="hidden py-0 lg:block">
+        <div className="space-y-2 p-3.5">
+          <div className="grid grid-cols-7 gap-2">
+            {["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"].map((d) => (
+              <div
+                key={d}
+                className="py-1 text-center text-[11.5px] font-extrabold tracking-wide text-[#94a3b8]"
               >
-                <span
+                {d}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {grid.map((d, i) => {
+              if (!d) return <div key={`hd-${i}`} className="min-h-[104px]" />;
+              const esHoy = d.fecha === hoy;
+              const { entregas, recolecciones } = agenda(d);
+              const conActividad = entregas > 0 || recolecciones > 0;
+              return (
+                <button
+                  key={d.fecha}
+                  type="button"
+                  onClick={() => conActividad && setAbierto(d)}
+                  disabled={!conActividad}
                   className={cn(
-                    "text-[13px] font-extrabold tabular-nums",
+                    "flex min-h-[104px] flex-col gap-1.5 rounded-xl p-2 text-left transition",
+                    conActividad ? "cursor-pointer hover:brightness-[0.98]" : "cursor-default",
                     esHoy
-                      ? "text-primary"
+                      ? "border-2 border-primary bg-primary/5"
                       : conActividad
-                        ? "text-foreground"
-                        : "text-[#b7c2d2]",
+                        ? "border border-border bg-card shadow-[0_6px_16px_-14px_rgba(20,38,63,.7)]"
+                        : "border border-border bg-muted/30",
                   )}
                 >
-                  {d.dia}
-                </span>
-
-                <div className="flex flex-col gap-1">
-                  {entregas > 0 && (
-                    <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#e2edfb] px-1.5 py-0.5 text-[11px] font-bold text-[#2b5a9c]">
-                      <span className="size-1.5 rounded-full bg-primary" />
-                      {entregas} {entregas === 1 ? "entrega" : "entregas"}
-                    </span>
-                  )}
-                  {recolecciones > 0 && (
-                    <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#fdefe2] px-1.5 py-0.5 text-[11px] font-bold text-[#b45309]">
-                      <span className="size-1.5 rounded-full bg-[#ea6a2e]" />
-                      {recolecciones} recol.
-                    </span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                  <span
+                    className={cn(
+                      "text-[13px] font-extrabold tabular-nums",
+                      esHoy ? "text-primary" : conActividad ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {d.dia}
+                  </span>
+                  <div className="flex flex-col gap-1">
+                    {entregas > 0 && (
+                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#e2edfb] px-1.5 py-0.5 text-[11px] font-bold text-[#2b5a9c]">
+                        <span className="size-1.5 rounded-full bg-primary" />
+                        {entregas} {entregas === 1 ? "entrega" : "entregas"}
+                      </span>
+                    )}
+                    {recolecciones > 0 && (
+                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#fdefe2] px-1.5 py-0.5 text-[11px] font-bold text-[#b45309]">
+                        <span className="size-1.5 rounded-full bg-[#ea6a2e]" />
+                        {recolecciones} recol.
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </Card>
 
       <Dialog open={abierto !== null} onOpenChange={(o) => !o && setAbierto(null)}>
         <DialogContent
@@ -131,7 +298,6 @@ export function CalendarioMes({
                 {fechaLarga(fechaDesdeInput(abierto.fecha))}
               </DialogTitle>
 
-              {/* Resumen del día: entregas y recolecciones */}
               <div className="flex flex-wrap gap-2">
                 {abiertoAgenda.entregas > 0 && (
                   <span className="inline-flex items-center gap-1.5 rounded-md bg-[#e2edfb] px-2.5 py-1 text-xs font-bold text-[#2b5a9c]">
