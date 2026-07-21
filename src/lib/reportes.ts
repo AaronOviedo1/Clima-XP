@@ -18,7 +18,7 @@ const reporteSelect = {
   unidades: {
     select: {
       precioDia: true,
-      unidad: { select: { codigo: true, modelo: { select: { tipo: true } } } },
+      unidad: { select: { codigo: true, modelo: { select: { tipo: true, nombre: true } } } },
     },
   },
   accesorios: { select: { cargo: true } },
@@ -52,7 +52,10 @@ export type Reportes = {
   porMetodo: Serie;
   topClientes: Serie;
   utilizacion: Serie; // rentas por unidad
+  utilizacionModelo: Serie; // rentas por modelo (sub = tipo)
   porZona: Serie; // domicilio por tramo de km
+  domicilio: { km: number; ingresos: number; recorridos: number };
+  tendencia: { mostrar: boolean; pct: number; sube: boolean; label: string };
 };
 
 export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes> {
@@ -82,7 +85,11 @@ export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes
   const metodoMap = new Map<string, number>();
   const clienteMap = new Map<string, { nombre: string; monto: number }>();
   const unidadMap = new Map<string, number>();
+  const modeloMap = new Map<string, { nombre: string; tipo: string; count: number }>();
   const zonaMap = new Map<number, number>();
+  let domIngresos = 0;
+  let domKm = 0;
+  let domRecorridos = 0;
 
   for (const r of enPeriodo) {
     const t = totalesDeRenta(r);
@@ -103,9 +110,13 @@ export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes
     let tieneCal = false;
     for (const ru of r.unidades) {
       const rev = ru.precioDia * dias;
-      if (ru.unidad.modelo.tipo === "CALENTON") { cal += rev; tieneCal = true; }
+      const { tipo, nombre } = ru.unidad.modelo;
+      if (tipo === "CALENTON") { cal += rev; tieneCal = true; }
       else { aero += rev; tieneAero = true; }
       unidadMap.set(ru.unidad.codigo, (unidadMap.get(ru.unidad.codigo) ?? 0) + 1);
+      const mm = modeloMap.get(nombre) ?? { nombre, tipo, count: 0 };
+      mm.count += 1;
+      modeloMap.set(nombre, mm);
     }
     if (tieneAero) rentasAero++;
     if (tieneCal) rentasCal++;
@@ -126,7 +137,26 @@ export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes
       const km = Math.ceil(r.distanciaKm);
       zonaMap.set(km, (zonaMap.get(km) ?? 0) + r.costoDomicilio);
     }
+
+    // Totales de domicilio (para los KPI de la vista móvil)
+    if (r.costoDomicilio > 0) {
+      domIngresos += r.costoDomicilio;
+      domRecorridos += 1;
+      if (r.distanciaKm != null && r.distanciaKm > 0) domKm += r.distanciaKm;
+    }
   }
+
+  // Tendencia vs periodo anterior (solo cuando hay un año fijo con dato previo)
+  let facturadoPrev = 0;
+  if (typeof periodo === "number") {
+    for (const r of rentas) {
+      if (r.fechaInicio.getUTCFullYear() === periodo - 1) facturadoPrev += totalesDeRenta(r).total;
+    }
+  }
+  const tendenciaMostrar = typeof periodo === "number" && facturadoPrev > 0;
+  const tendenciaPct = tendenciaMostrar
+    ? Math.round(((facturado - facturadoPrev) / facturadoPrev) * 100)
+    : 0;
 
   // Ordenar ingresos por periodo cronológicamente
   const ingresosPorPeriodo: Serie =
@@ -159,6 +189,10 @@ export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes
     .slice(0, 12)
     .map(([codigo, n]) => ({ label: codigo, valor: n, sub: `${n} rentas` }));
 
+  const utilizacionModelo: Serie = [...modeloMap.values()]
+    .sort((a, b) => b.count - a.count)
+    .map((m) => ({ label: m.nombre, valor: m.count, sub: m.tipo }));
+
   const porZona: Serie = [...zonaMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([km, valor]) => ({ label: `${km} km`, valor }));
@@ -179,6 +213,14 @@ export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes
     porMetodo,
     topClientes,
     utilizacion,
+    utilizacionModelo,
     porZona,
+    domicilio: { km: Math.round(domKm), ingresos: domIngresos, recorridos: domRecorridos },
+    tendencia: {
+      mostrar: tendenciaMostrar,
+      pct: tendenciaPct,
+      sube: tendenciaPct >= 0,
+      label: typeof periodo === "number" ? `vs ${periodo - 1}` : "",
+    },
   };
 }
