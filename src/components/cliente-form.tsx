@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CANALES } from "@/lib/canales";
 
 type Accion = (
   prev: ClienteFormState,
@@ -27,14 +28,6 @@ export type ClienteInicial = {
   canalOrigen: string;
   notas: string | null;
 };
-
-const CANALES = [
-  { v: "WHATSAPP", l: "WhatsApp" },
-  { v: "MESSENGER", l: "Messenger" },
-  { v: "RECOMENDACION", l: "Recomendación" },
-  { v: "RECURRENTE", l: "Recurrente" },
-  { v: "OTRO", l: "Otro" },
-];
 
 function Guardar({ texto }: { texto: string }) {
   const { pending } = useFormStatus();

@@ -20,14 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const CANALES = [
-  { v: "WHATSAPP", l: "WhatsApp" },
-  { v: "MESSENGER", l: "Messenger" },
-  { v: "RECOMENDACION", l: "Recomendación" },
-  { v: "RECURRENTE", l: "Recurrente" },
-  { v: "OTRO", l: "Otro" },
-];
+import { CANALES } from "@/lib/canales";
 
 type ClienteCreado = { id: string; nombre: string; telefono: string | null };
 

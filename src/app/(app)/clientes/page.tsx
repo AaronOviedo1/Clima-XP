@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Buscador } from "@/components/buscador";
 import { Card } from "@/components/ui/card";
 import { DistintivoEquipos } from "@/components/distintivo-equipos";
+import { DistintivoCanal } from "@/components/distintivo-canal";
 import { tiposDeEquipoDeRentas } from "@/lib/rentas";
 import { cn } from "@/lib/utils";
 
@@ -140,9 +141,7 @@ export default async function ClientesPage({
                     {formatoTelefono(c.telefono) || "—"}
                   </span>
                   <span>
-                    <span className="rounded-full bg-superficie-activa px-2.5 py-1 text-xs font-bold text-primary">
-                      {c.canalOrigen}
-                    </span>
+                    <DistintivoCanal canal={c.canalOrigen} />
                   </span>
                   <span className="text-right text-sm font-extrabold">
                     {c._count.rentas}

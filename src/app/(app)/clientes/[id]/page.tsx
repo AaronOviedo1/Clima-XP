@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { rentaListSelect } from "@/lib/rentas";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { DistintivoCanal } from "@/components/distintivo-canal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RentaListItem } from "@/components/renta-list-item";
 
@@ -54,7 +54,7 @@ export default async function ClienteDetallePage({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Canal</span>
-            <Badge variant="secondary">{cliente.canalOrigen}</Badge>
+            <DistintivoCanal canal={cliente.canalOrigen} />
           </div>
           {cliente.notas && (
             <div className="pt-1">
