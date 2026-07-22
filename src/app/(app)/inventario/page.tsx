@@ -1,19 +1,15 @@
-import { Package, Droplets, Wrench, CheckCircle2, Cable, Flame, ChevronDown, AlertTriangle } from "lucide-react";
+import { Package, Droplets, Wrench, CheckCircle2, Cable, Flame, Wind, ChevronDown, AlertTriangle } from "lucide-react";
 import {
   datosInventario,
   conteoPorEstado,
   ESTADO_UNIDAD_META,
+  ORDEN_ESTADO_UNIDAD,
   SPEC_LABELS,
 } from "@/lib/inventario";
 import { pesos } from "@/lib/dinero";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   AccesoriosDialog,
   NuevaUnidadDialog,
@@ -22,6 +18,12 @@ import {
   ResolverMantenimientoButton,
   UnidadDialog,
 } from "@/components/inventario-acciones";
+import { EdicionMasivaDialog } from "@/components/inventario-masivo";
+import {
+  AccionesSeccion,
+  CLASE_ACCION_TOP_BAR,
+  SubtituloSeccion,
+} from "@/components/desktop/seccion";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +96,7 @@ function Specs({ specs }: { specs: unknown }) {
   const label = (k: string) => SPEC_LABELS[k] ?? k;
 
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+    <dl className="grid grid-cols-2 gap-x-7 gap-y-2 text-sm">
       {Object.entries(obj).map(([k, v]) => {
         if (v == null) return null;
         if (k === "variantes" && Array.isArray(v)) return null; // se muestran aparte
@@ -104,15 +106,15 @@ function Specs({ specs }: { specs: unknown }) {
             .join(" · ");
           return (
             <div key={k} className="col-span-2 flex justify-between gap-2">
-              <dt className="text-muted-foreground">{label(k)}</dt>
-              <dd className="text-right">{sub}</dd>
+              <dt className="text-tenue">{label(k)}</dt>
+              <dd className="text-right font-bold">{sub}</dd>
             </div>
           );
         }
         return (
           <div key={k} className="flex justify-between gap-2">
-            <dt className="text-muted-foreground">{label(k)}</dt>
-            <dd className="text-right font-medium">{String(v)}</dd>
+            <dt className="text-tenue">{label(k)}</dt>
+            <dd className="text-right font-bold">{String(v)}</dd>
           </div>
         );
       })}
@@ -135,6 +137,17 @@ function Variantes({ specs }: { specs: unknown }) {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Fila de la tarjeta de accesorios (escritorio): concepto a la izquierda, el
+// desglose a la derecha ("9 llenos · 3 vacíos · 2 en cliente").
+function FilaAccesorio({ titulo, valor }: { titulo: string; valor: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-t px-[18px] py-3.5 text-sm">
+      <span className="font-bold">{titulo}</span>
+      <span className="text-right text-tenue">{valor}</span>
     </div>
   );
 }
@@ -165,58 +178,84 @@ export default async function InventarioPage() {
 
   const ModeloCard = ({ m }: { m: (typeof modelos)[number] }) => {
     const conteo = conteoPorEstado(m.unidades);
+    const esAero = m.tipo === "AEROCOOLER";
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base">{m.nombre}</CardTitle>
-            <div className="flex items-start gap-1">
+      <Card className="group gap-0 py-0">
+        <div className="space-y-3.5 p-[18px]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {/* Barrita del tipo: azul aerocooler, naranja calentón. */}
+              <span
+                className="h-[22px] w-[5px] shrink-0 rounded-full"
+                style={{ background: esAero ? "var(--primary)" : "var(--calenton)" }}
+              />
+              <h3 className="truncate text-[19px] leading-tight font-extrabold tracking-tight">
+                {m.nombre}
+              </h3>
+            </div>
+            <div className="flex shrink-0 items-start gap-1">
               <div className="text-right">
-                <div className="font-semibold">{pesos(m.precioDia)}/día</div>
+                <div className="text-[17px] leading-tight font-extrabold tabular-nums">
+                  {pesos(m.precioDia)}/día
+                </div>
                 {m.precioDia3Mas && (
-                  <div className="text-xs text-muted-foreground">3+: {pesos(m.precioDia3Mas)}</div>
+                  <div className="text-[13px] font-semibold text-tenue tabular-nums">
+                    3+: {pesos(m.precioDia3Mas)}
+                  </div>
                 )}
               </div>
-              <PreciosDialog
-                modelo={{
-                  id: m.id,
-                  nombre: m.nombre,
-                  precioDia: m.precioDia,
-                  precioDia3Mas: m.precioDia3Mas,
-                }}
-              />
+              {/* El lápiz solo aparece al pasar por la tarjeta: el mockup no lo
+                  muestra, pero editar precios se hace desde aquí. */}
+              <div className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                <PreciosDialog
+                  modelo={{
+                    id: m.id,
+                    nombre: m.nombre,
+                    precioDia: m.precioDia,
+                    precioDia3Mas: m.precioDia3Mas,
+                  }}
+                />
+              </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            <Badge variant="outline">{m.unidades.length} unidades</Badge>
-            {Object.entries(conteo).map(([estado, n]) => (
-              <Badge key={estado} variant={ESTADO_UNIDAD_META[estado]?.badge ?? "outline"}>
-                {n} {ESTADO_UNIDAD_META[estado]?.label ?? estado}
-              </Badge>
+
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-lg bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground tabular-nums">
+              {m.unidades.length} u
+            </span>
+            {ORDEN_ESTADO_UNIDAD.filter((e) => conteo[e]).map((estado) => (
+              <span
+                key={estado}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-xs font-bold tabular-nums",
+                  ESTADO_UNIDAD_META[estado].chip,
+                )}
+              >
+                {conteo[estado]} {ESTADO_UNIDAD_META[estado].corto}
+              </span>
             ))}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
+
           <Specs specs={m.specs} />
           <Variantes specs={m.specs} />
-          <Separator />
-          <div className="flex flex-wrap gap-1.5">
-            {m.unidades.map((u) => (
-              <UnidadDialog
-                key={u.id}
-                unidad={{ id: u.id, codigo: u.codigo, estado: u.estado, notas: u.notas }}
-              />
-            ))}
-            <NuevaUnidadDialog
-              modeloId={m.id}
-              modeloNombre={m.nombre}
-              codigoSugerido={siguienteCodigo(
-                m.unidades.map((u) => u.codigo),
-                m.nombre,
-              )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-t p-[18px]">
+          {m.unidades.map((u) => (
+            <UnidadDialog
+              key={u.id}
+              unidad={{ id: u.id, codigo: u.codigo, estado: u.estado, notas: u.notas }}
             />
-          </div>
-        </CardContent>
+          ))}
+          <NuevaUnidadDialog
+            modeloId={m.id}
+            modeloNombre={m.nombre}
+            codigoSugerido={siguienteCodigo(
+              m.unidades.map((u) => u.codigo),
+              m.nombre,
+            )}
+          />
+        </div>
       </Card>
     );
   };
@@ -298,6 +337,18 @@ export default async function InventarioPage() {
 
   const codigosMantenimiento = mantenimientos.map((mt) => mt.unidad.codigo);
 
+  // Unidades de todos los modelos, para la selección múltiple del pop-up masivo.
+  const modelosMasivo = modelos.map((m) => ({
+    id: m.id,
+    nombre: m.nombre,
+    unidades: m.unidades.map((u) => ({
+      id: u.id,
+      codigo: u.codigo,
+      estado: u.estado,
+      notas: u.notas,
+    })),
+  }));
+
   return (
     <>
       {/* ---------- MÓVIL (estilo iOS del mockup) ---------- */}
@@ -307,13 +358,16 @@ export default async function InventarioPage() {
         <div className="grid grid-cols-3 gap-3">
           <KpiMovil valor={kpis.totalUnidades} label="Unidades" />
           <KpiMovil valor={kpis.disponibles} label="Disponibles" color="text-emerald-600 dark:text-emerald-500" />
-          <KpiMovil valor={kpis.rentadas} label="Rentadas" color="text-[#ea6a2e] dark:text-[#f4a05a]" />
+          <KpiMovil valor={kpis.rentadas} label="Rentadas" color="text-calenton" />
         </div>
 
         <section className="space-y-3">
-          <h2 className="px-1 text-xs font-bold tracking-wide text-muted-foreground uppercase">
-            Modelos
-          </h2>
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
+              Modelos
+            </h2>
+            <EdicionMasivaDialog modelos={modelosMasivo} />
+          </div>
           {modelos.map((m) => (
             <ModeloCardMovil key={m.id} m={m} />
           ))}
@@ -426,115 +480,129 @@ export default async function InventarioPage() {
 
       {/* ---------- ESCRITORIO ---------- */}
       <div className="hidden space-y-6 lg:block">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="var(--chip-azul)" fg="var(--chip-azul-fg)" />
-        <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="var(--chip-verde)" fg="var(--chip-verde-fg)" />
-        <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mantenimiento" bg="var(--chip-ambar)" fg="var(--chip-ambar-fg)" />
-        <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos llenos" bg="var(--chip-cielo)" fg="var(--chip-cielo-fg)" />
-      </div>
+        {/* El TopBar cuenta lo que hay: "28 unidades · 4 modelos". */}
+        <SubtituloSeccion
+          texto={`${kpis.totalUnidades} ${kpis.totalUnidades === 1 ? "unidad" : "unidades"} · ${modelos.length} ${modelos.length === 1 ? "modelo" : "modelos"}`}
+        />
+        {/* Y la edición masiva vive en el navbar, junto a "Nueva renta". */}
+        <AccionesSeccion>
+          <EdicionMasivaDialog
+            modelos={modelosMasivo}
+            triggerClassName={CLASE_ACCION_TOP_BAR}
+          />
+        </AccionesSeccion>
 
-      <section className="space-y-3.5">
-        <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
-          <Package className="size-5 text-[#51ADE5]" /> Aerocoolers
-        </h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {aerocoolers.map((m) => (
-            <ModeloCard key={m.id} m={m} />
-          ))}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="var(--chip-azul)" fg="var(--chip-azul-fg)" />
+          <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="var(--chip-verde)" fg="var(--chip-verde-fg)" />
+          <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mantenimiento" bg="var(--chip-ambar)" fg="var(--chip-ambar-fg)" />
+          <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos llenos" bg="var(--chip-cielo)" fg="var(--chip-cielo-fg)" />
         </div>
-      </section>
 
-      <section className="space-y-3.5">
-        <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
-          <Flame className="size-5 text-[#ea6a2e] dark:text-[#f4a05a]" /> Calentones
-        </h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {calentones.map((m) => (
-            <ModeloCard key={m.id} m={m} />
-          ))}
-        </div>
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-      {/* Accesorios */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold">
-            <Cable className="size-[18px] text-[#51ADE5]" /> Accesorios
+        <section className="space-y-3.5">
+          <h2 className="flex items-center gap-2.5 text-[19px] font-extrabold tracking-tight">
+            <Wind className="size-5 text-primary" /> Aerocoolers
           </h2>
-          <div className="flex gap-2">
-            <AccesoriosDialog
-              accesorios={accesorios.map((a) => ({
-                id: a.id,
-                tipo: a.tipo,
-                descripcion: a.descripcion,
-                codigo: a.codigo,
-                estadoTambo: a.estadoTambo,
-              }))}
-            />
-            <NuevoAccesorioDialog />
+          <div className="grid gap-4 lg:grid-cols-2">
+            {aerocoolers.map((m) => (
+              <ModeloCard key={m.id} m={m} />
+            ))}
           </div>
-        </div>
-        <Card>
-          <CardContent className="space-y-3 py-4 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Mangueras 10m</span>
-              <Badge variant="secondary">{mangueras.length}</Badge>
+        </section>
+
+        <section className="space-y-3.5">
+          <h2 className="flex items-center gap-2.5 text-[19px] font-extrabold tracking-tight">
+            <Flame className="size-5 text-calenton" /> Calentones
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {calentones.map((m) => (
+              <ModeloCard key={m.id} m={m} />
+            ))}
+          </div>
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
+          {/* Accesorios */}
+          <Card className="gap-0 py-0">
+            <div className="flex items-center justify-between gap-2 p-[18px] pb-3.5">
+              <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold tracking-tight">
+                <Cable className="size-[18px] text-primary" /> Accesorios
+              </h2>
+              <div className="flex gap-2">
+                <AccesoriosDialog
+                  accesorios={accesorios.map((a) => ({
+                    id: a.id,
+                    tipo: a.tipo,
+                    descripcion: a.descripcion,
+                    codigo: a.codigo,
+                    estadoTambo: a.estadoTambo,
+                  }))}
+                />
+                <NuevoAccesorioDialog />
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span>Extensiones</span>
-              <span className="text-muted-foreground">
-                {["5", "10", "15", "45"]
+            <FilaAccesorio
+              titulo="Mangueras 10 m"
+              valor={`${mangueras.length} ${mangueras.length === 1 ? "unidad" : "unidades"}`}
+            />
+            <FilaAccesorio
+              titulo="Extensiones"
+              valor={
+                ["5", "10", "15", "45"]
                   .map((metros) => {
                     const n = extensiones.filter((e) => e.descripcion.includes(`${metros}m`)).length;
                     return n ? `${n}×${metros}m` : null;
                   })
                   .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1">
-                <Droplets className="size-4" /> Tambos de gas 20kg
-              </span>
-              <span className="text-muted-foreground">
-                {tambos.filter((t) => t.estadoTambo === "LLENO").length} llenos ·{" "}
-                {tambos.filter((t) => t.estadoTambo === "VACIO").length} vacíos ·{" "}
-                {tambos.filter((t) => t.estadoTambo === "EN_CLIENTE").length} en cliente
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+                  .join(" · ") || "—"
+              }
+            />
+            <FilaAccesorio
+              titulo="Tambos de gas 20 kg"
+              valor={`${tambos.filter((t) => t.estadoTambo === "LLENO").length} llenos · ${
+                tambos.filter((t) => t.estadoTambo === "VACIO").length
+              } vacíos · ${tambos.filter((t) => t.estadoTambo === "EN_CLIENTE").length} en cliente`}
+            />
+          </Card>
 
-      {/* Mantenimientos abiertos */}
-      {mantenimientos.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold text-chip-ambar-fg">
-            <Wrench className="size-[18px]" /> Mantenimientos abiertos ({mantenimientos.length})
-          </h2>
-          <ul className="space-y-2">
-            {mantenimientos.map((mt) => (
-              <li key={mt.id}>
-                <Card>
-                  <CardContent className="flex items-center justify-between gap-2 py-3 text-sm">
-                    <div>
-                      <span className="font-medium">{mt.unidad.codigo}</span>{" "}
-                      <span className="text-muted-foreground">{mt.descripcion}</span>
+          {/* Mantenimientos abiertos: en ámbar, para que el taller salte a la vista. */}
+          <Card className="gap-0 border-chip-ambar-fg/25 py-0">
+            <h2 className="flex items-center gap-2.5 p-[18px] pb-3.5 text-[17px] font-extrabold tracking-tight text-chip-ambar-fg">
+              <Wrench className="size-[18px]" /> Mantenimientos abiertos
+              {mantenimientos.length > 0 && ` · ${mantenimientos.length}`}
+            </h2>
+            {mantenimientos.length === 0 ? (
+              <p className="px-[18px] pb-[18px] text-sm text-muted-foreground">
+                Ninguna unidad en el taller.
+              </p>
+            ) : (
+              <ul className="space-y-2.5 px-[18px] pb-[18px]">
+                {mantenimientos.map((mt) => (
+                  <li
+                    key={mt.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-chip-ambar px-3.5 py-3 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <span className="font-extrabold text-chip-ambar-fg">
+                        {mt.unidad.codigo}
+                      </span>{" "}
+                      <span className="text-foreground/80">{mt.descripcion}</span>
                       {mt.costo != null && (
-                        <span className="ml-1 text-muted-foreground">· {pesos(mt.costo)}</span>
+                        <span className="text-foreground/80"> · {pesos(mt.costo)}</span>
                       )}
                     </div>
-                    <ResolverMantenimientoButton id={mt.id} />
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      </div>
+                    <ResolverMantenimientoButton
+                      id={mt.id}
+                      texto="Resolver"
+                      conIcono={false}
+                      className="shrink-0 border-transparent bg-taller font-bold text-taller-fg hover:bg-taller hover:text-taller-fg hover:brightness-110"
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
       </div>
     </>
   );

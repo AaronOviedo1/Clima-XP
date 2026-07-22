@@ -276,7 +276,7 @@ export function CalendarioMes({
                     )}
                     {recolecciones > 0 && (
                       <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-chip-ambar px-1.5 py-0.5 text-[11px] font-bold text-chip-ambar-fg">
-                        <span className="size-1.5 rounded-full bg-[#ea6a2e]" />
+                        <span className="size-1.5 rounded-full bg-calenton" />
                         {recolecciones} recol.
                       </span>
                     )}

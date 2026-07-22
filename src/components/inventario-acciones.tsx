@@ -17,6 +17,7 @@ import {
   type InventarioActionResult,
 } from "@/lib/actions/inventario";
 import { ESTADO_UNIDAD_META } from "@/lib/inventario";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -187,14 +188,18 @@ export function UnidadDialog({
       }}
     >
       <DialogTrigger asChild>
+        {/* El color dice el estado (verde disponible, azul rentada, ámbar en
+            mantenimiento, gris baja): así se lee de un vistazo qué hay libre. */}
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors hover:bg-muted"
-          title={unidad.notas ?? undefined}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold tabular-nums transition hover:brightness-95 dark:hover:brightness-125",
+            ESTADO_UNIDAD_META[unidad.estado]?.chip ?? "bg-muted text-muted-foreground",
+          )}
+          title={`${ESTADO_UNIDAD_META[unidad.estado]?.label ?? unidad.estado}${unidad.notas ? ` · ${unidad.notas}` : ""}`}
         >
-          <span className="font-medium">{unidad.codigo}</span>
-          <span className={ESTADO_UNIDAD_META[unidad.estado]?.clase}>●</span>
-          {unidad.notas && <span className="text-muted-foreground">{unidad.notas}</span>}
+          {unidad.codigo}
+          {unidad.notas && <span className="font-medium opacity-70">·</span>}
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
@@ -385,7 +390,7 @@ export function NuevaUnidadDialog({
       <DialogTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1 rounded-lg border border-dashed px-2.5 py-1 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted"
         >
           <Plus className="size-3" /> unidad
         </button>
@@ -652,14 +657,24 @@ export function NuevoAccesorioDialog() {
 }
 
 // ---------- Resolver mantenimiento ----------
-export function ResolverMantenimientoButton({ id }: { id: string }) {
+export function ResolverMantenimientoButton({
+  id,
+  texto = "Resuelto",
+  className,
+  conIcono = true,
+}: {
+  id: string;
+  texto?: string;
+  className?: string;
+  conIcono?: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   return (
     <Button
       variant="outline"
       size="sm"
-      className="h-8"
+      className={cn("h-8", className)}
       disabled={pending}
       onClick={() =>
         start(async () => {
@@ -672,7 +687,7 @@ export function ResolverMantenimientoButton({ id }: { id: string }) {
         })
       }
     >
-      <Check className="size-3.5" /> {pending ? "…" : "Resuelto"}
+      {conIcono && <Check className="size-3.5" />} {pending ? "…" : texto}
     </Button>
   );
 }

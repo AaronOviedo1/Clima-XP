@@ -11,7 +11,7 @@ import {
 import { generarReportes, type PeriodoReporte, type Serie } from "@/lib/reportes";
 import { pesos } from "@/lib/dinero";
 import { Barras } from "@/components/barras";
-import { Badge } from "@/components/ui/badge";
+import { AccionesSeccion } from "@/components/desktop/seccion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
@@ -357,27 +357,31 @@ export default async function ReportesPage({
 
       {/* ---------- ESCRITORIO (se conserva) ---------- */}
       <div className="hidden space-y-5 lg:block">
-        {/* Selector de periodo */}
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-          <Link href="/reportes">
-            <Badge
-              variant={periodo === "todos" ? "default" : "outline"}
-              className="cursor-pointer px-3 py-1"
-            >
-              Todos
-            </Badge>
-          </Link>
-          {rep.aniosDisponibles.map((a) => (
-            <Link key={a} href={`/reportes?anio=${a}`}>
-              <Badge
-                variant={periodo === a ? "default" : "outline"}
-                className="cursor-pointer px-3 py-1"
+        {/* El selector de periodo vive en el navbar (segmented control). */}
+        <AccionesSeccion>
+          <div className="flex h-10 items-center gap-1 rounded-xl bg-superficie-suave p-1">
+            {[
+              ...anios.map((a) => ({
+                href: `/reportes?anio=${a}`,
+                label: String(a),
+                activo: periodo === a,
+              })),
+              { href: "/reportes", label: "Todos", activo: periodo === "todos" },
+            ].map((t) => (
+              <Link
+                key={t.label}
+                href={t.href}
+                className={`flex h-8 items-center rounded-lg px-3 text-[13px] font-bold transition-colors ${
+                  t.activo
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {a}
-              </Badge>
-            </Link>
-          ))}
-        </div>
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        </AccionesSeccion>
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

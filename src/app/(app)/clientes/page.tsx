@@ -7,7 +7,13 @@ import { Buscador } from "@/components/buscador";
 import { Card } from "@/components/ui/card";
 import { DistintivoEquipos } from "@/components/distintivo-equipos";
 import { DistintivoCanal } from "@/components/distintivo-canal";
+import {
+  AccionesSeccion,
+  CLASE_ACCION_TOP_BAR,
+} from "@/components/desktop/seccion";
+import { EdicionMasivaClientesDialog } from "@/components/clientes-masivo";
 import { tiposDeEquipoDeRentas } from "@/lib/rentas";
+import { GRID_CLIENTES } from "@/lib/grids";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +43,7 @@ function iniciales(nombre: string) {
   );
 }
 
-const CLI_GRID = "grid grid-cols-[2fr_1.3fr_1fr_0.8fr] gap-3";
+const CLI_GRID = GRID_CLIENTES;
 
 export default async function ClientesPage({
   searchParams,
@@ -71,8 +77,29 @@ export default async function ClientesPage({
     orderBy: { nombre: "asc" },
   });
 
+  // DTO plano para la selección múltiple (el pop-up es client component).
+  const clientesMasivo = clientes.map((c) => ({
+    id: c.id,
+    nombre: c.nombre,
+    telefono: c.telefono,
+    canalOrigen: c.canalOrigen,
+    notas: c.notas,
+    rentas: c._count.rentas,
+  }));
+
   return (
     <div className="space-y-5">
+      {/* En desktop las acciones viven en el TopBar, junto a "Nueva renta". */}
+      <AccionesSeccion>
+        <EdicionMasivaClientesDialog
+          clientes={clientesMasivo}
+          triggerClassName={CLASE_ACCION_TOP_BAR}
+        />
+        <Link href="/clientes/nuevo" className={CLASE_ACCION_TOP_BAR}>
+          <Plus className="size-4" /> Nuevo cliente
+        </Link>
+      </AccionesSeccion>
+
       {/* Header solo móvil (en desktop lo cubre el TopBar). */}
       <div className="flex items-center justify-between gap-2 lg:hidden">
         <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em]">Clientes</h1>
@@ -83,15 +110,11 @@ export default async function ClientesPage({
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="flex-1 lg:hidden">
+      <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex-1">
           <Buscador placeholder="Buscar cliente o teléfono" />
         </div>
-        <Button asChild size="sm" className="hidden lg:flex">
-          <Link href="/clientes/nuevo">
-            <Plus className="size-4" /> Nuevo cliente
-          </Link>
-        </Button>
+        <EdicionMasivaClientesDialog clientes={clientesMasivo} />
       </div>
 
       {clientes.length === 0 ? (

@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Bell, Plus, Search } from "lucide-react";
+import {
+  useAccionesSeccion,
+  useSubtituloSeccion,
+} from "@/components/desktop/seccion";
 
 // Título y subtítulo por sección (el diseño los muestra en el header claro).
 const META: Record<string, [string, string]> = {
@@ -27,7 +31,8 @@ function metaDeRuta(pathname: string): [string, string] {
 
 /**
  * Header claro del shell de escritorio: título por ruta, buscador global,
- * botón "Nueva renta" y campana. Solo visible en `lg+`.
+ * acciones de la pantalla (vía <AccionesSeccion>), botón "Nueva renta" y
+ * campana. Solo visible en `lg+`.
  */
 export function TopBar({
   esAdmin,
@@ -40,7 +45,17 @@ export function TopBar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [titulo, subtituloBase] = metaDeRuta(pathname);
-  const subtitulo = pathname === "/" ? fechaHoy : subtituloBase;
+  // La pantalla puede publicar subtítulo y botones propios; solo cuentan si
+  // los publicó esta misma ruta — con un pop-up interceptado abierto, la
+  // página de fondo sigue montada y publicando, pero el pathname ya es otro
+  // (ver seccion.tsx).
+  const subPub = useSubtituloSeccion();
+  const accPub = useAccionesSeccion();
+  const subtituloSeccion =
+    subPub && subPub.ruta === pathname ? subPub.valor : null;
+  const acciones = accPub && accPub.ruta === pathname ? accPub.valor : null;
+  const subtitulo =
+    subtituloSeccion ?? (pathname === "/" ? fechaHoy : subtituloBase);
 
   // El buscador filtra la sección actual si soporta ?q= (Clientes o Rentas);
   // desde cualquier otra pantalla busca rentas por defecto.
@@ -81,11 +96,11 @@ export function TopBar({
   return (
     <header className="hidden h-[66px] shrink-0 items-center gap-4 border-b border-linea bg-card/80 px-[30px] text-card-foreground backdrop-blur lg:flex">
       <div className="min-w-0">
-        <h1 className="text-xl leading-tight font-extrabold tracking-tight">
+        <h1 className="truncate text-xl leading-tight font-extrabold tracking-tight">
           {titulo}
         </h1>
         {subtitulo && (
-          <p className="mt-0.5 text-[12.5px] text-muted-foreground first-letter:uppercase">
+          <p className="mt-0.5 truncate text-[12.5px] text-muted-foreground first-letter:uppercase">
             {subtitulo}
           </p>
         )}
@@ -108,6 +123,8 @@ export function TopBar({
         />
       </div>
 
+      {acciones}
+
       <Link
         href="/rentas/nueva"
         className="brand-gradient flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-bold whitespace-nowrap text-white shadow-[0_8px_18px_-10px_rgba(56,113,193,.9)] transition hover:brightness-105"
@@ -119,7 +136,7 @@ export function TopBar({
         <Link
           href="/configuracion"
           title="Notificaciones"
-          className="relative flex size-10 items-center justify-center rounded-xl border border-input bg-card text-medio transition-colors hover:border-primary/40 hover:text-foreground"
+          className="relative flex size-10 shrink-0 items-center justify-center rounded-xl border border-input bg-card text-medio transition-colors hover:border-primary/40 hover:text-foreground"
         >
           <Bell className="size-4" />
         </Link>

@@ -52,7 +52,7 @@ export default async function CalendarioPage({
             <span className="size-2.5 rounded-full bg-primary" /> Entregas
           </span>
           <span className="flex items-center gap-1.5 font-semibold">
-            <span className="size-2.5 rounded-full bg-[#ea6a2e]" /> Recolecciones
+            <span className="size-2.5 rounded-full bg-calenton" /> Recolecciones
           </span>
         </div>
         <div className="flex gap-2">

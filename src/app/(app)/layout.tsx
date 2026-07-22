@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { BottomNav } from "@/components/bottom-nav";
 import { Sidebar } from "@/components/desktop/sidebar";
 import { TopBar } from "@/components/desktop/top-bar";
+import { SeccionProvider } from "@/components/desktop/seccion";
 import { RegistrarSW } from "@/components/push/registrar-sw";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { fechaDesdeInput, fechaLarga, hoyNegocio } from "@/lib/fechas";
@@ -30,24 +31,29 @@ export default async function AppLayout({
     <div className="flex min-h-dvh flex-col overflow-x-clip lg:h-dvh lg:min-h-0 lg:flex-row lg:overflow-hidden">
       <Sidebar nombre={nombre} esAdmin={esAdmin} authHabilitada={AUTH_HABILITADA} />
 
-      <div className="flex min-w-0 flex-1 flex-col lg:h-dvh lg:overflow-hidden">
-        {/* TopBar usa useSearchParams (buscador en vivo): el <Suspense> evita el
-            error de bailout a CSR al prerenderizar páginas no dinámicas. */}
-        <Suspense fallback={null}>
-          <TopBar esAdmin={esAdmin} fechaHoy={fechaHoy} />
-        </Suspense>
+      {/* El provider envuelve TopBar y contenido: una página publica su
+          subtítulo (<SubtituloSeccion>) o sus botones (<AccionesSeccion>)
+          y el TopBar los pinta. */}
+      <SeccionProvider>
+        <div className="flex min-w-0 flex-1 flex-col lg:h-dvh lg:overflow-hidden">
+          {/* TopBar usa useSearchParams (buscador en vivo): el <Suspense> evita el
+              error de bailout a CSR al prerenderizar páginas no dinámicas. */}
+          <Suspense fallback={null}>
+            <TopBar esAdmin={esAdmin} fechaHoy={fechaHoy} />
+          </Suspense>
 
-        <main className="flex-1 px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-28 md:px-8 lg:overflow-y-auto lg:px-[30px] lg:pt-7 lg:pb-7">
-          <div className="mx-auto w-full max-w-3xl md:max-w-4xl lg:max-w-[1360px]">
-            {children}
+          <main className="flex-1 px-5 pt-[calc(env(safe-area-inset-top)+14px)] pb-28 md:px-8 lg:overflow-y-auto lg:px-[30px] lg:pt-7 lg:pb-7">
+            <div className="mx-auto w-full max-w-3xl md:max-w-4xl lg:max-w-[1360px]">
+              {children}
+            </div>
+          </main>
+
+          {modal}
+          <div className="lg:hidden">
+            <BottomNav esAdmin={esAdmin} />
           </div>
-        </main>
-
-        {modal}
-        <div className="lg:hidden">
-          <BottomNav esAdmin={esAdmin} />
         </div>
-      </div>
+      </SeccionProvider>
 
       <RegistrarSW />
     </div>

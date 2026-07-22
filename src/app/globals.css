@@ -66,6 +66,8 @@
   --color-chip-verde-fg: var(--chip-verde-fg);
   --color-chip-rojo: var(--chip-rojo);
   --color-chip-rojo-fg: var(--chip-rojo-fg);
+  --color-taller: var(--taller);
+  --color-taller-fg: var(--taller-fg);
 }
 
 /*
@@ -124,7 +126,7 @@
   --tenue: #94a3b8; /* texto terciario */
   --medio: #5a6b82; /* texto secundario */
   --saldo: #d97706; /* ámbar de "debe" */
-  --calenton: #f5a623; /* naranja de calentones */
+  --calenton: #ea6a2e; /* naranja de calentones (íconos, barras, donut) */
   /* Pares fondo/figura de chips, avatares y cajas de ícono de los KPI. */
   --chip-azul: #e2edfb;
   --chip-azul-fg: #2b5a9c;
@@ -136,6 +138,10 @@
   --chip-verde-fg: #177a41; /* el #1c8a4b del diseño se queda en 3.9:1 */
   --chip-rojo: #fde9e5;
   --chip-rojo-fg: #c0392b;
+  /* Botón sólido de "Resolver" (mantenimientos). En claro va naranja oscuro con
+     texto blanco; el naranja de marca con blanco encima se queda en 2:1. */
+  --taller: #c2410c;
+  --taller-fg: #ffffff;
 }
 
 .dark {
@@ -181,7 +187,7 @@
   --tenue: oklch(0.75 0.028 245);
   --medio: oklch(0.81 0.022 245);
   --saldo: #f3ae4a;
-  --calenton: #f5a623;
+  --calenton: #f4a05a;
   --chip-azul: #1b2f4d;
   --chip-azul-fg: #9cc3f2;
   --chip-cielo: #16324a;
@@ -192,6 +198,9 @@
   --chip-verde-fg: #76d29d;
   --chip-rojo: #3a201c;
   --chip-rojo-fg: #f19a8c;
+  /* En oscuro se invierte: naranja brillante con texto oscuro encima. */
+  --taller: #f5a623;
+  --taller-fg: #2a1a0d;
 }
 
 @layer base {

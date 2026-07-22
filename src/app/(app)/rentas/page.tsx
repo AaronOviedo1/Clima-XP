@@ -24,11 +24,12 @@ import {
   rangoSemana,
 } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
+import { GRID_RENTAS } from "@/lib/grids";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const GRID = "grid grid-cols-[14px_1.7fr_1.1fr_1fr_0.9fr_0.8fr] gap-3";
+const GRID = GRID_RENTAS;
 
 // Estados que cuentan como "activas" (renta en curso, aún en la calle o por salir).
 const ESTADOS_ACTIVAS = ["CONFIRMADA", "EN_RUTA", "ENTREGADA"] as const;
