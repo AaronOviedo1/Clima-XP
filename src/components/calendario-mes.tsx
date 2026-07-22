@@ -229,7 +229,7 @@ export function CalendarioMes({
             {["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"].map((d) => (
               <div
                 key={d}
-                className="py-1 text-center text-[11.5px] font-extrabold tracking-wide text-[#94a3b8]"
+                className="py-1 text-center text-[11.5px] font-extrabold tracking-wide text-tenue"
               >
                 {d}
               </div>
@@ -249,7 +249,9 @@ export function CalendarioMes({
                   disabled={!conActividad}
                   className={cn(
                     "flex min-h-[104px] flex-col gap-1.5 rounded-xl p-2 text-left transition",
-                    conActividad ? "cursor-pointer hover:brightness-[0.98]" : "cursor-default",
+                    conActividad
+                      ? "cursor-pointer hover:brightness-[0.98] dark:hover:brightness-125"
+                      : "cursor-default",
                     esHoy
                       ? "border-2 border-primary bg-primary/5"
                       : conActividad
@@ -267,13 +269,13 @@ export function CalendarioMes({
                   </span>
                   <div className="flex flex-col gap-1">
                     {entregas > 0 && (
-                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#e2edfb] px-1.5 py-0.5 text-[11px] font-bold text-[#2b5a9c]">
+                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-chip-azul px-1.5 py-0.5 text-[11px] font-bold text-chip-azul-fg">
                         <span className="size-1.5 rounded-full bg-primary" />
                         {entregas} {entregas === 1 ? "entrega" : "entregas"}
                       </span>
                     )}
                     {recolecciones > 0 && (
-                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-[#fdefe2] px-1.5 py-0.5 text-[11px] font-bold text-[#b45309]">
+                      <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-chip-ambar px-1.5 py-0.5 text-[11px] font-bold text-chip-ambar-fg">
                         <span className="size-1.5 rounded-full bg-[#ea6a2e]" />
                         {recolecciones} recol.
                       </span>
@@ -300,13 +302,13 @@ export function CalendarioMes({
 
               <div className="flex flex-wrap gap-2">
                 {abiertoAgenda.entregas > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#e2edfb] px-2.5 py-1 text-xs font-bold text-[#2b5a9c]">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-chip-azul px-2.5 py-1 text-xs font-bold text-chip-azul-fg">
                     <Truck className="size-3.5" /> {abiertoAgenda.entregas}{" "}
                     {abiertoAgenda.entregas === 1 ? "entrega" : "entregas"}
                   </span>
                 )}
                 {abiertoAgenda.recolecciones > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#fdefe2] px-2.5 py-1 text-xs font-bold text-[#b45309]">
+                  <span className="inline-flex items-center gap-1.5 rounded-md bg-chip-ambar px-2.5 py-1 text-xs font-bold text-chip-ambar-fg">
                     <PackageOpen className="size-3.5" /> {abiertoAgenda.recolecciones}{" "}
                     {abiertoAgenda.recolecciones === 1 ? "recolección" : "recolecciones"}
                   </span>

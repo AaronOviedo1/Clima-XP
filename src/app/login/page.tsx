@@ -45,7 +45,7 @@ export default function LoginPage() {
       </div>
 
       {/* Formulario */}
-      <div className="flex flex-1 items-center justify-center bg-white">
+      <div className="flex flex-1 items-center justify-center bg-card">
         <div className="w-full max-w-90 px-10">
           <h2 className="mb-1.5 text-2xl font-extrabold tracking-tight text-foreground">
             Iniciar sesión

@@ -11,13 +11,14 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-// Paleta de avatares por iniciales (diseño desktop).
+// Paleta de avatares por iniciales (diseño desktop). Tokens, no hex: cada par
+// tiene su versión oscura en globals.css.
 const AV_PALETTE: [string, string][] = [
-  ["#e2edfb", "#2b5a9c"],
-  ["#fef3d6", "#b45309"],
-  ["#e7f6ec", "#1c8a4b"],
-  ["#fde9e5", "#c0392b"],
-  ["#dff0fb", "#1f6fb0"],
+  ["var(--chip-azul)", "var(--chip-azul-fg)"],
+  ["var(--chip-ambar)", "var(--chip-ambar-fg)"],
+  ["var(--chip-verde)", "var(--chip-verde-fg)"],
+  ["var(--chip-rojo)", "var(--chip-rojo-fg)"],
+  ["var(--chip-cielo)", "var(--chip-cielo-fg)"],
 ];
 
 function iniciales(nombre: string) {
@@ -103,7 +104,7 @@ export default async function ClientesPage({
             <div
               className={cn(
                 CLI_GRID,
-                "border-b border-[#eef2f8] bg-[#fafbfe] px-[22px] py-3.5 text-[11.5px] font-bold tracking-wide text-[#94a3b8] uppercase",
+                "border-b border-linea bg-superficie-suave px-[22px] py-3.5 text-[11.5px] font-bold tracking-wide text-tenue uppercase",
               )}
             >
               <span>Cliente</span>
@@ -120,7 +121,7 @@ export default async function ClientesPage({
                   href={`/clientes/${c.id}`}
                   className={cn(
                     CLI_GRID,
-                    "items-center border-b border-[#f4f7fc] px-[22px] py-3.5 hover:bg-[#f8fafd]",
+                    "items-center border-b border-linea-suave px-[22px] py-3.5 hover:bg-superficie-hover",
                   )}
                 >
                   <div className="flex min-w-0 items-center gap-3">
@@ -135,11 +136,11 @@ export default async function ClientesPage({
                       <DistintivoEquipos tipos={tipos} />
                     </div>
                   </div>
-                  <span className="text-[13.5px] text-[#5a6b82] tabular-nums">
+                  <span className="text-[13.5px] text-medio tabular-nums">
                     {formatoTelefono(c.telefono) || "—"}
                   </span>
                   <span>
-                    <span className="rounded-full bg-[#eef4fb] px-2.5 py-1 text-xs font-bold text-primary">
+                    <span className="rounded-full bg-superficie-activa px-2.5 py-1 text-xs font-bold text-primary">
                       {c.canalOrigen}
                     </span>
                   </span>

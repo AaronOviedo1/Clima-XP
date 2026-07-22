@@ -129,7 +129,7 @@ export default async function ConfiguracionPage() {
       <TarjetaEditable
         resumen={
           <div className="flex items-center gap-3 px-4 py-3.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#e2edfb] text-[#2b5a9c] dark:bg-[#1b2f4d] dark:text-[#9cc3f2]">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-chip-azul text-chip-azul-fg">
               <MapPin className="size-[19px]" />
             </span>
             <div className="min-w-0 flex-1">

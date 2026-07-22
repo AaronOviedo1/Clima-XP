@@ -25,7 +25,7 @@ export function Barras({
               {d.sub ?? fmt(d.valor)}
             </span>
           </div>
-          <div className="h-3.5 overflow-hidden rounded-md bg-[#f1f5fb]">
+          <div className="h-3.5 overflow-hidden rounded-md bg-muted">
             <div
               className="h-full rounded-md bg-[linear-gradient(90deg,#3871C1,#51ADE5)]"
               style={{ width: `${Math.max(2, (d.valor / max) * 100)}%` }}

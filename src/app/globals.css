@@ -46,6 +46,26 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Tonos del diseño desktop (ver bloques :root/.dark de abajo). */
+  --color-superficie-suave: var(--superficie-suave);
+  --color-superficie-hover: var(--superficie-hover);
+  --color-superficie-activa: var(--superficie-activa);
+  --color-linea: var(--linea);
+  --color-linea-suave: var(--linea-suave);
+  --color-tenue: var(--tenue);
+  --color-medio: var(--medio);
+  --color-saldo: var(--saldo);
+  --color-calenton: var(--calenton);
+  --color-chip-azul: var(--chip-azul);
+  --color-chip-azul-fg: var(--chip-azul-fg);
+  --color-chip-cielo: var(--chip-cielo);
+  --color-chip-cielo-fg: var(--chip-cielo-fg);
+  --color-chip-ambar: var(--chip-ambar);
+  --color-chip-ambar-fg: var(--chip-ambar-fg);
+  --color-chip-verde: var(--chip-verde);
+  --color-chip-verde-fg: var(--chip-verde-fg);
+  --color-chip-rojo: var(--chip-rojo);
+  --color-chip-rojo-fg: var(--chip-rojo-fg);
 }
 
 /*
@@ -90,13 +110,32 @@
   --sidebar-accent-foreground: oklch(0.4 0.1 257.4);
   --sidebar-border: oklch(0.915 0.018 240);
   --sidebar-ring: oklch(0.551 0.139 257.4);
-  /* Colores de las cajas de ícono de los KPI (fondo/figura), claro. */
-  --kpi1a: #e2edfb;
-  --kpi1b: #2b5a9c;
-  --kpi2a: #dff0fb;
-  --kpi2b: #1f6fb0;
-  --kpi3a: #fde9e5;
-  --kpi3b: #c0392b;
+
+  /*
+   * Tonos del diseño desktop. Están como tokens (y no como hex sueltos en los
+   * componentes) porque cada uno necesita su gemelo oscuro: un `#fafbfe` fijo
+   * deja el texto blanco del tema oscuro sobre fondo casi blanco.
+   */
+  --superficie-suave: #fafbfe; /* cabecera de tabla, fila de grupo */
+  --superficie-hover: #f2f5fb;
+  --superficie-activa: #eef4fb; /* semana actual, chips suaves */
+  --linea: #eef2f8;
+  --linea-suave: #f4f7fc;
+  --tenue: #94a3b8; /* texto terciario */
+  --medio: #5a6b82; /* texto secundario */
+  --saldo: #d97706; /* ámbar de "debe" */
+  --calenton: #f5a623; /* naranja de calentones */
+  /* Pares fondo/figura de chips, avatares y cajas de ícono de los KPI. */
+  --chip-azul: #e2edfb;
+  --chip-azul-fg: #2b5a9c;
+  --chip-cielo: #dff0fb;
+  --chip-cielo-fg: #1f6fb0;
+  --chip-ambar: #fef3d6;
+  --chip-ambar-fg: #b45309;
+  --chip-verde: #e7f6ec;
+  --chip-verde-fg: #1c8a4b;
+  --chip-rojo: #fde9e5;
+  --chip-rojo-fg: #c0392b;
 }
 
 .dark {
@@ -132,13 +171,27 @@
   --sidebar-accent-foreground: oklch(0.97 0.005 236.3);
   --sidebar-border: oklch(1 0 0 / 12%);
   --sidebar-ring: oklch(0.715 0.12 238.4);
-  /* KPI en oscuro (del diseño móvil). */
-  --kpi1a: #1b2f4d;
-  --kpi1b: #9cc3f2;
-  --kpi2a: #16324a;
-  --kpi2b: #7fc4ee;
-  --kpi3a: #3a201c;
-  --kpi3b: #f19a8c;
+
+  /* Gemelos oscuros: superficies por encima de la card, textos aclarados. */
+  --superficie-suave: oklch(0.235 0.012 262);
+  --superficie-hover: oklch(0.275 0.016 258);
+  --superficie-activa: oklch(0.3 0.045 250);
+  --linea: oklch(1 0 0 / 10%);
+  --linea-suave: oklch(1 0 0 / 6%);
+  --tenue: oklch(0.75 0.028 245);
+  --medio: oklch(0.81 0.022 245);
+  --saldo: #f3ae4a;
+  --calenton: #f5a623;
+  --chip-azul: #1b2f4d;
+  --chip-azul-fg: #9cc3f2;
+  --chip-cielo: #16324a;
+  --chip-cielo-fg: #7fc4ee;
+  --chip-ambar: #3a2c14;
+  --chip-ambar-fg: #f2c073;
+  --chip-verde: #16301f;
+  --chip-verde-fg: #76d29d;
+  --chip-rojo: #3a201c;
+  --chip-rojo-fg: #f19a8c;
 }
 
 @layer base {

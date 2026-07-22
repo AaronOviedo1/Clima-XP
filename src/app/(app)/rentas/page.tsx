@@ -207,21 +207,21 @@ export default async function RentasPage({
               "flex h-9 items-center rounded-[10px] px-4 text-[13px] font-bold transition-colors",
               c.activo
                 ? "bg-primary text-primary-foreground"
-                : "border border-[#e0e8f3] bg-white text-[#5a6b82] hover:border-[#b9c9df]",
+                : "border border-input bg-card text-medio hover:border-primary/40 hover:text-foreground",
             )}
           >
             {c.label}
           </Link>
         ))}
         <div className="flex-1" />
-        <div className="hidden items-center gap-1.5 text-xs font-semibold text-[#94a3b8] sm:flex">
+        <div className="hidden items-center gap-1.5 text-xs font-semibold text-tenue sm:flex">
           <span>Entrega:</span>
           {[1, 2, 3, 4, 5, 6, 0].map((d) => (
             <span
               key={d}
               title={DIA_SEMANA_META[d].nombre}
               className={cn(
-                "flex size-[22px] items-center justify-center rounded-md border border-black/5 text-[11px] font-extrabold text-[#3a4658]",
+                "flex size-[22px] items-center justify-center rounded-md border border-black/5 text-[11px] font-extrabold text-[#3a4658] dark:border-white/10 dark:text-foreground",
                 DIA_SEMANA_META[d].clase,
               )}
             >
@@ -243,7 +243,7 @@ export default async function RentasPage({
             <div
               className={cn(
                 GRID,
-                "border-b border-[#eef2f8] px-5 py-2.5 text-[11.5px] font-bold tracking-wide text-[#94a3b8] uppercase",
+                "border-b border-linea px-5 py-2.5 text-[11.5px] font-bold tracking-wide text-tenue uppercase",
               )}
             >
               <span />
@@ -260,16 +260,18 @@ export default async function RentasPage({
                 <details
                   key={s.clave}
                   open={actual}
-                  className="group border-t border-[#eef2f8] first:border-t-0"
+                  className="group border-t border-linea first:border-t-0"
                 >
                   <summary
                     className={cn(
                       "flex list-none cursor-pointer items-center justify-between gap-3 px-5 py-3.5 select-none [&::-webkit-details-marker]:hidden",
-                      actual ? "bg-[#eef4fb]" : "bg-[#fafbfe] hover:bg-[#f2f5fb]",
+                      actual
+                        ? "bg-superficie-activa"
+                        : "bg-superficie-suave hover:bg-superficie-hover",
                     )}
                   >
                     <div className="flex items-center gap-2.5">
-                      <ChevronRight className="size-4 text-[#94a3b8] transition-transform group-open:rotate-90" />
+                      <ChevronRight className="size-4 text-tenue transition-transform group-open:rotate-90" />
                       <span
                         className={cn(
                           "text-sm font-extrabold",
@@ -279,7 +281,7 @@ export default async function RentasPage({
                         {titulo ?? rangoSemana(s.lunes)}
                       </span>
                       {titulo && (
-                        <span className="text-[12.5px] text-[#94a3b8]">
+                        <span className="text-[12.5px] text-tenue">
                           {rangoSemana(s.lunes)}
                         </span>
                       )}
@@ -290,7 +292,7 @@ export default async function RentasPage({
                         {pesos(s.total)}
                       </span>
                       {s.saldo > 0 && (
-                        <span className="font-bold text-[#d97706]">
+                        <span className="font-bold text-saldo">
                           {" "}
                           · deben {pesos(s.saldo)}
                         </span>
@@ -307,7 +309,7 @@ export default async function RentasPage({
                         href={`/rentas/${r.id}`}
                         className={cn(
                           GRID,
-                          "items-center border-b border-[#f4f7fc] px-5 py-3.5 transition hover:brightness-[0.965]",
+                          "items-center border-b border-linea-suave px-5 py-3.5 transition hover:brightness-[0.965] dark:hover:brightness-125",
                           claseColorDia(r.fechaInicio),
                         )}
                       >
@@ -321,11 +323,11 @@ export default async function RentasPage({
                           <div className="truncate text-sm font-bold">
                             {r.cliente.nombre}
                           </div>
-                          <div className="truncate text-xs text-[#94a3b8]">
+                          <div className="truncate text-xs text-tenue">
                             {r.direccion}
                           </div>
                         </div>
-                        <div className="text-[13px] font-semibold text-[#5a6b82]">
+                        <div className="text-[13px] font-semibold text-medio">
                           {equipos.length === 0
                             ? "Sin equipos"
                             : equipos
@@ -343,7 +345,7 @@ export default async function RentasPage({
                             {pesos(t.total)}
                           </div>
                           {t.saldo > 0 && (
-                            <div className="text-[11.5px] font-bold text-[#d97706]">
+                            <div className="text-[11.5px] font-bold text-saldo">
                               Debe {pesos(t.saldo)}
                             </div>
                           )}

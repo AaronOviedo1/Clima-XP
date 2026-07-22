@@ -79,7 +79,7 @@ export function TopBar({
   }
 
   return (
-    <header className="hidden h-[66px] shrink-0 items-center gap-4 border-b border-[#e3eaf4] bg-white/80 px-[30px] backdrop-blur lg:flex">
+    <header className="hidden h-[66px] shrink-0 items-center gap-4 border-b border-linea bg-card/80 px-[30px] text-card-foreground backdrop-blur lg:flex">
       <div className="min-w-0">
         <h1 className="text-xl leading-tight font-extrabold tracking-tight">
           {titulo}
@@ -94,7 +94,7 @@ export function TopBar({
       <div className="flex-1" />
 
       <div className="relative w-[280px]">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#94a3b8]" />
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-tenue" />
         <input
           type="search"
           value={texto}
@@ -104,7 +104,7 @@ export function TopBar({
               ? "Buscar cliente o teléfono…"
               : "Buscar cliente, teléfono, equipo…"
           }
-          className="h-10 w-full rounded-xl border border-[#e0e8f3] bg-[#f5f8fc] pr-3 pl-[38px] text-[13.5px] outline-none focus:border-primary focus:bg-white focus:ring-[3px] focus:ring-primary/15 [&::-webkit-search-cancel-button]:hidden"
+          className="h-10 w-full rounded-xl border border-input bg-superficie-suave pr-3 pl-[38px] text-[13.5px] text-foreground outline-none placeholder:text-tenue focus:border-primary focus:bg-card focus:ring-[3px] focus:ring-primary/15 [&::-webkit-search-cancel-button]:hidden"
         />
       </div>
 
@@ -119,7 +119,7 @@ export function TopBar({
         <Link
           href="/configuracion"
           title="Notificaciones"
-          className="relative flex size-10 items-center justify-center rounded-xl border border-[#e0e8f3] bg-white text-[#5a6b82] transition-colors hover:border-[#c9d6e8] hover:text-foreground"
+          className="relative flex size-10 items-center justify-center rounded-xl border border-input bg-card text-medio transition-colors hover:border-primary/40 hover:text-foreground"
         >
           <Bell className="size-4" />
         </Link>

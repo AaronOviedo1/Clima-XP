@@ -80,7 +80,7 @@ function Titulo({
       )}
       <h2 className="text-base font-extrabold tracking-tight">{children}</h2>
       {n !== undefined && (
-        <span className="text-[13px] font-bold text-[#94a3b8]">{n}</span>
+        <span className="text-[13px] font-bold text-tenue">{n}</span>
       )}
     </div>
   );
@@ -101,14 +101,14 @@ function FilaCompacta({
     <Link
       href={`/rentas/${renta.id}`}
       className={cn(
-        "flex items-center gap-3 border-b border-black/[0.04] px-4 py-3 transition last:border-b-0 hover:brightness-[0.97] dark:hover:brightness-110",
+        "flex items-center gap-3 border-b border-black/[0.04] px-4 py-3 transition last:border-b-0 hover:brightness-[0.97] dark:border-white/8 dark:hover:brightness-125",
         claseColorDia(renta.fechaInicio),
       )}
     >
       <span className="h-[34px] w-1.5 shrink-0 rounded bg-black/15 dark:bg-white/20" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold">{renta.cliente.nombre}</div>
-        <div className="truncate text-xs text-[#94a3b8]">
+        <div className="truncate text-xs text-tenue">
           {extra ??
             equipos.map((e) => `${e.cantidad} × ${e.nombre}`).join(" · ")}
         </div>
@@ -176,23 +176,23 @@ export default async function DashboardPage() {
           icono={<Truck className="size-5" />}
           valor={entregas.length}
           label="Entregas hoy"
-          bg="var(--kpi1a)"
-          fg="var(--kpi1b)"
+          bg="var(--chip-azul)"
+          fg="var(--chip-azul-fg)"
         />
         <KPI
           icono={<PackageOpen className="size-5" />}
           valor={recolecciones.length}
           label="Recolecciones"
-          bg="var(--kpi2a)"
-          fg="var(--kpi2b)"
+          bg="var(--chip-cielo)"
+          fg="var(--chip-cielo-fg)"
         />
         {esAdmin && (
           <KPI
             icono={<Wallet className="size-5" />}
             valor={pesos(porCobrar)}
             label="Por cobrar"
-            bg="var(--kpi3a)"
-            fg="var(--kpi3b)"
+            bg="var(--chip-rojo)"
+            fg="var(--chip-rojo-fg)"
             wide
           />
         )}
@@ -283,7 +283,7 @@ export default async function DashboardPage() {
             <section>
               <Titulo
                 icono={<Wallet className="size-[18px]" />}
-                color="#d97706"
+                color="var(--saldo)"
                 n={saldos.length}
               >
                 Saldos pendientes
@@ -295,7 +295,7 @@ export default async function DashboardPage() {
                     renta={renta}
                     extra={`${fechaCorta(renta.fechaInicio)}`}
                     mostrarMonto={
-                      <span className="text-[13.5px] font-extrabold text-[#d97706] tabular-nums">
+                      <span className="text-[13.5px] font-extrabold text-saldo tabular-nums">
                         Debe {pesos(saldo)}
                       </span>
                     }

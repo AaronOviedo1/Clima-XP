@@ -3,13 +3,23 @@ import { Wind, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Chip por tipo de equipo: viento azul para aerocooler, flama ámbar para calentón.
-// Reutiliza los tonos de AV_PALETTE (azul #e2edfb/#2b5a9c, ámbar #fef3d6/#b45309).
+// Usa los mismos tokens de chip que los avatares de clientes (tienen par oscuro).
 const ESTILO: Record<
   TipoEquipo,
   { etiqueta: string; icono: typeof Wind; bg: string; fg: string }
 > = {
-  AEROCOOLER: { etiqueta: "Aerocooler", icono: Wind, bg: "#e2edfb", fg: "#2b5a9c" },
-  CALENTON: { etiqueta: "Calentón", icono: Flame, bg: "#fef3d6", fg: "#b45309" },
+  AEROCOOLER: {
+    etiqueta: "Aerocooler",
+    icono: Wind,
+    bg: "var(--chip-azul)",
+    fg: "var(--chip-azul-fg)",
+  },
+  CALENTON: {
+    etiqueta: "Calentón",
+    icono: Flame,
+    bg: "var(--chip-ambar)",
+    fg: "var(--chip-ambar-fg)",
+  },
 };
 
 export function DistintivoEquipos({

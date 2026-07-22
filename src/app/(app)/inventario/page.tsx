@@ -253,7 +253,7 @@ export default async function InventarioPage() {
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full transition-all"
-                style={{ width: `${pct}%`, background: esAero ? "var(--primary)" : "#f5a623" }}
+                style={{ width: `${pct}%`, background: esAero ? "var(--primary)" : "var(--calenton)" }}
               />
             </div>
           </summary>
@@ -339,7 +339,7 @@ export default async function InventarioPage() {
           </div>
           <Card className="gap-0 py-0">
             <div className="flex items-center gap-3 p-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#e2edfb] text-[#2b5a9c] dark:bg-[#1b2f4d] dark:text-[#9cc3f2]">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-chip-azul text-chip-azul-fg">
                 <Cable className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -349,7 +349,7 @@ export default async function InventarioPage() {
               <div className="text-xl font-extrabold tabular-nums">{mangueras.length}</div>
             </div>
             <div className="flex items-center gap-3 border-t p-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#dff0fb] text-[#1f6fb0] dark:bg-[#16324a] dark:text-[#7fc4ee]">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-chip-cielo text-chip-cielo-fg">
                 <Cable className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -367,7 +367,7 @@ export default async function InventarioPage() {
               <div className="text-xl font-extrabold tabular-nums">{extensiones.length}</div>
             </div>
             <div className="flex items-center gap-3 border-t p-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#fde9e5] text-[#c0392b] dark:bg-[#3a201c] dark:text-[#f19a8c]">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-chip-rojo text-chip-rojo-fg">
                 <Droplets className="size-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -388,7 +388,7 @@ export default async function InventarioPage() {
             <Card className="gap-0 py-0">
               <details className="group">
                 <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#fde9e5] text-[#c0392b] dark:bg-[#3a201c] dark:text-[#f19a8c]">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-chip-rojo text-chip-rojo-fg">
                     <AlertTriangle className="size-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -427,10 +427,10 @@ export default async function InventarioPage() {
       {/* ---------- ESCRITORIO ---------- */}
       <div className="hidden space-y-6 lg:block">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="#e2edfb" fg="#2b5a9c" />
-        <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="#e7f6ec" fg="#1c8a4b" />
-        <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mantenimiento" bg="#fef3d6" fg="#b45309" />
-        <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos llenos" bg="#dff0fb" fg="#1f6fb0" />
+        <KPI icono={<Package className="size-5" />} valor={kpis.totalUnidades} label="Unidades" bg="var(--chip-azul)" fg="var(--chip-azul-fg)" />
+        <KPI icono={<CheckCircle2 className="size-5" />} valor={kpis.disponibles} label="Disponibles" bg="var(--chip-verde)" fg="var(--chip-verde-fg)" />
+        <KPI icono={<Wrench className="size-5" />} valor={kpis.enMantenimiento} label="En mantenimiento" bg="var(--chip-ambar)" fg="var(--chip-ambar-fg)" />
+        <KPI icono={<Droplets className="size-5" />} valor={kpis.tambosLlenos} label="Tambos llenos" bg="var(--chip-cielo)" fg="var(--chip-cielo-fg)" />
       </div>
 
       <section className="space-y-3.5">
@@ -446,7 +446,7 @@ export default async function InventarioPage() {
 
       <section className="space-y-3.5">
         <h2 className="flex items-center gap-2.5 text-[17px] font-extrabold">
-          <Flame className="size-5 text-[#ea6a2e]" /> Calentones
+          <Flame className="size-5 text-[#ea6a2e] dark:text-[#f4a05a]" /> Calentones
         </h2>
         <div className="grid gap-4 lg:grid-cols-2">
           {calentones.map((m) => (
@@ -511,7 +511,7 @@ export default async function InventarioPage() {
       {/* Mantenimientos abiertos */}
       {mantenimientos.length > 0 && (
         <section className="space-y-3">
-          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold text-[#b45309]">
+          <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold text-chip-ambar-fg">
             <Wrench className="size-[18px]" /> Mantenimientos abiertos ({mantenimientos.length})
           </h2>
           <ul className="space-y-2">

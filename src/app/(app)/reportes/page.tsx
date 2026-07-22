@@ -253,7 +253,7 @@ export default async function ReportesPage({
           <div
             className="flex size-24 shrink-0 items-center justify-center rounded-full"
             style={{
-              background: `conic-gradient(var(--primary) 0 ${coolerPct}%, #f5a623 ${coolerPct}% 100%)`,
+              background: `conic-gradient(var(--primary) 0 ${coolerPct}%, var(--calenton) ${coolerPct}% 100%)`,
             }}
           >
             <div className="flex size-14 items-center justify-center rounded-full bg-card text-[15px] font-extrabold tabular-nums">
@@ -271,7 +271,7 @@ export default async function ReportesPage({
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <span className="size-3 rounded-[4px] bg-[#f5a623]" />
+              <span className="size-3 rounded-[4px] bg-[var(--calenton)]" />
               <div>
                 <div className="text-sm font-bold">Calentones</div>
                 <div className="text-[12px] font-semibold text-muted-foreground">
@@ -335,7 +335,7 @@ export default async function ReportesPage({
                   label={u.label}
                   derecha={String(u.valor)}
                   pct={(u.valor / maxUtil) * 100}
-                  color={u.sub === "CALENTON" ? "#f5a623" : "var(--primary)"}
+                  color={u.sub === "CALENTON" ? "var(--calenton)" : "var(--primary)"}
                 />
               ))}
             </div>
