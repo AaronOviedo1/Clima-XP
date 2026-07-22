@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { esAdmin } from "@/lib/auth-guard";
+import type { LoteActionResult } from "@/lib/lote";
 
 export type InventarioActionResult = { ok: true } | { error: string };
 
-function fallo(e: unknown, porDefecto: string): InventarioActionResult {
+function fallo(e: unknown, porDefecto: string): { error: string } {
   if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
     return { error: "Ese código ya existe." };
   }
@@ -107,6 +109,92 @@ export async function eliminarUnidad(unidadId: string): Promise<InventarioAction
     return { ok: true };
   } catch (e) {
     return fallo(e, "No se pudo eliminar la unidad.");
+  }
+}
+
+// ---------- Unidades en lote (edición masiva) ----------
+const loteSchema = z.object({
+  unidadIds: z.array(z.string().min(1)).min(1, "Selecciona al menos una unidad"),
+  // `undefined` = no tocar el campo; `null`/"" en notas = limpiarlas.
+  estado: z.enum(["DISPONIBLE", "RENTADA", "MANTENIMIENTO", "BAJA"]).optional(),
+  notas: z.string().trim().nullable().optional(),
+});
+
+export async function editarUnidadesEnLote(
+  input: z.input<typeof loteSchema>,
+): Promise<LoteActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo un administrador puede editar el inventario." };
+  }
+  const parsed = loteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const { unidadIds, estado, notas } = parsed.data;
+  if (!estado && notas === undefined) {
+    return { error: "Elige un estado o unas notas para aplicar." };
+  }
+  try {
+    const data: Prisma.UnidadUpdateManyMutationInput = {};
+    if (estado) data.estado = estado;
+    if (notas !== undefined) data.notas = notas || null;
+
+    const afectadas = await prisma.$transaction(async (tx) => {
+      const res = await tx.unidad.updateMany({ where: { id: { in: unidadIds } }, data });
+      // Regresar unidades a DISPONIBLE cierra sus mantenimientos abiertos: si no,
+      // seguirían saliendo en la lista de "Mantenimientos abiertos" del inventario.
+      if (estado === "DISPONIBLE") {
+        await tx.mantenimiento.updateMany({
+          where: { unidadId: { in: unidadIds }, resuelto: false },
+          data: { resuelto: true },
+        });
+      }
+      return res.count;
+    });
+    refrescar();
+    return { ok: true, afectadas, omitidas: [] };
+  } catch (e) {
+    return fallo(e, "No se pudieron actualizar las unidades.");
+  }
+}
+
+export async function eliminarUnidadesEnLote(
+  unidadIds: string[],
+): Promise<LoteActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo un administrador puede editar el inventario." };
+  }
+  if (!unidadIds?.length) return { error: "Selecciona al menos una unidad." };
+  try {
+    // Las unidades con historial de rentas no se borran (igual que en el alta
+    // individual): se informan como omitidas para que se marquen como Baja.
+    const conRentas = await prisma.rentaUnidad.findMany({
+      where: { unidadId: { in: unidadIds } },
+      select: { unidadId: true },
+      distinct: ["unidadId"],
+    });
+    const bloqueadas = new Set(conRentas.map((r) => r.unidadId));
+    const borrables = unidadIds.filter((id) => !bloqueadas.has(id));
+    const omitidas = bloqueadas.size
+      ? (
+          await prisma.unidad.findMany({
+            where: { id: { in: [...bloqueadas] } },
+            select: { codigo: true },
+            orderBy: { codigo: "asc" },
+          })
+        ).map((u) => u.codigo)
+      : [];
+
+    if (borrables.length) {
+      await prisma.$transaction([
+        prisma.mantenimiento.deleteMany({ where: { unidadId: { in: borrables } } }),
+        prisma.unidad.deleteMany({ where: { id: { in: borrables } } }),
+      ]);
+      refrescar();
+    }
+    return { ok: true, afectadas: borrables.length, omitidas };
+  } catch (e) {
+    return fallo(e, "No se pudieron eliminar las unidades.");
   }
 }
 

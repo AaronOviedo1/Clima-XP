@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { normalizarTelefono } from "@/lib/telefono";
+import { esAdmin } from "@/lib/auth-guard";
+import type { LoteActionResult } from "@/lib/lote";
 
 const clienteSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio"),
@@ -144,4 +146,78 @@ export async function editarCliente(
   revalidatePath("/clientes");
   revalidatePath(`/clientes/${id}`);
   redirect(`/clientes/${id}`);
+}
+
+// ---------- Clientes en lote (edición masiva) ----------
+const loteSchema = z.object({
+  clienteIds: z.array(z.string().min(1)).min(1, "Selecciona al menos un cliente"),
+  // `undefined` = no tocar el campo; `null`/"" en notas = limpiarlas.
+  canalOrigen: z
+    .enum(["MESSENGER", "WHATSAPP", "RECOMENDACION", "RECURRENTE", "OTRO"])
+    .optional(),
+  notas: z.string().trim().nullable().optional(),
+});
+
+export async function editarClientesEnLote(
+  input: z.input<typeof loteSchema>,
+): Promise<LoteActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo un administrador puede editar clientes." };
+  }
+  const parsed = loteSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const { clienteIds, canalOrigen, notas } = parsed.data;
+  if (!canalOrigen && notas === undefined) {
+    return { error: "Elige un origen o unas notas para aplicar." };
+  }
+  try {
+    const { count } = await prisma.cliente.updateMany({
+      where: { id: { in: clienteIds } },
+      data: {
+        ...(canalOrigen ? { canalOrigen } : {}),
+        ...(notas !== undefined ? { notas: notas || null } : {}),
+      },
+    });
+    revalidatePath("/clientes");
+    return { ok: true, afectadas: count, omitidas: [] };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "No se pudieron actualizar los clientes.",
+    };
+  }
+}
+
+export async function eliminarClientesEnLote(
+  clienteIds: string[],
+): Promise<LoteActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo un administrador puede eliminar clientes." };
+  }
+  if (!clienteIds?.length) return { error: "Selecciona al menos un cliente." };
+  try {
+    // Un cliente con rentas es historial: no se borra, se informa como omitido.
+    const conRentas = await prisma.cliente.findMany({
+      where: { id: { in: clienteIds }, rentas: { some: {} } },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: "asc" },
+    });
+    const bloqueados = new Set(conRentas.map((c) => c.id));
+    const borrables = clienteIds.filter((id) => !bloqueados.has(id));
+
+    if (borrables.length) {
+      await prisma.cliente.deleteMany({ where: { id: { in: borrables } } });
+      revalidatePath("/clientes");
+    }
+    return {
+      ok: true,
+      afectadas: borrables.length,
+      omitidas: conRentas.map((c) => c.nombre),
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "No se pudieron eliminar los clientes.",
+    };
+  }
 }
