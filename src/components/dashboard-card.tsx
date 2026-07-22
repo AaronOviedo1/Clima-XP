@@ -21,6 +21,7 @@ export function DashboardCard({
   mostrarSaldo = true,
   contexto,
   soloLectura = false,
+  numero,
 }: {
   r: TarjetaRenta;
   mostrarSaldo?: boolean;
@@ -29,6 +30,9 @@ export function DashboardCard({
   // Sin acciones de un tap: para armar la ruta de un día que no es hoy, antes
   // de que la entrega realmente pase.
   soloLectura?: boolean;
+  // Número de parada (ruta del día): se pinta como distintivo dentro de la
+  // tarjeta, junto al nombre. En el dashboard no se pasa.
+  numero?: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -76,10 +80,23 @@ export function DashboardCard({
     return `${saludo}, ya vamos en camino a entregarle ${equipo}.`;
   }
 
-  // Enlace de WhatsApp con el aviso "vamos en camino". Se abre como un <a>
-  // real (no window.open, que la PWA instalada en iOS bloquea en silencio);
-  // el cambio de estado se dispara en el onClick del propio enlace.
-  const urlEnRuta = linkWhatsApp(r.telefono, mensajeEnRuta());
+  // Al marcar "En ruta": abrir WhatsApp con el aviso y cambiar el estado.
+  // Se abre disparando el click de un <a> creado al vuelo (no window.open, que
+  // la PWA instalada en iOS bloquea en silencio). El mensaje se arma aquí, en
+  // el gesto de click, para no calcular la hora en el render (evita desajustes
+  // de hidratación) y para que el saludo refleje el momento del envío.
+  function enRuta() {
+    if (pending) return;
+    const url = linkWhatsApp(r.telefono, mensajeEnRuta());
+    if (url) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.click();
+    }
+    accion("EN_RUTA");
+  }
 
   // Entregar pregunta primero qué accesorios se dejaron (marcarEntregada los
   // registra); el resto de transiciones son de un tap directo.
@@ -102,14 +119,21 @@ export function DashboardCard({
     <Card className={cn(hecha && "opacity-75")}>
       <CardContent className="space-y-3 py-3">
         <div className="flex items-start justify-between gap-2">
-          <Link href={`/rentas/${r.id}`} className="min-w-0">
-            <p className="truncate font-semibold hover:underline">
-              {r.clienteNombre}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {formatoTelefono(r.telefono)}
-            </p>
-          </Link>
+          <div className="flex min-w-0 items-start gap-2.5">
+            {numero != null && (
+              <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#3871C1,#51ADE5)] text-xs font-extrabold text-white">
+                {numero}
+              </div>
+            )}
+            <Link href={`/rentas/${r.id}`} className="min-w-0">
+              <p className="truncate font-semibold hover:underline">
+                {r.clienteNombre}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {formatoTelefono(r.telefono)}
+              </p>
+            </Link>
+          </div>
           {mostrarSaldo && (
             <div className="text-right">
               {r.saldo > 0 ? (
@@ -164,37 +188,14 @@ export function DashboardCard({
           )}
           {!soloLectura && !hecha && r.estado === "CONFIRMADA" && (
             <>
-              {urlEnRuta ? (
-                <Button
-                  asChild
-                  variant="secondary"
-                  className={cn("h-11 flex-1", pending && "pointer-events-none opacity-50")}
-                >
-                  <a
-                    href={urlEnRuta}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => {
-                      if (pending) {
-                        e.preventDefault();
-                        return;
-                      }
-                      accion("EN_RUTA");
-                    }}
-                  >
-                    <Truck className="size-4" /> En ruta
-                  </a>
-                </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  className="h-11 flex-1"
-                  disabled={pending}
-                  onClick={() => accion("EN_RUTA")}
-                >
-                  <Truck className="size-4" /> En ruta
-                </Button>
-              )}
+              <Button
+                variant="secondary"
+                className="h-11 flex-1"
+                disabled={pending}
+                onClick={enRuta}
+              >
+                <Truck className="size-4" /> En ruta
+              </Button>
               <Button
                 className="h-11 flex-1"
                 disabled={pending}

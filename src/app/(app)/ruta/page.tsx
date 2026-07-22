@@ -104,21 +104,17 @@ export default async function RutaPage({
             </p>
           </div>
 
-          {/* Paradas numeradas */}
+          {/* Paradas numeradas (el número vive dentro de la tarjeta) */}
           <ol className="space-y-3">
             {ordenadas.map((r, i) => (
-              <li key={r.id} className="flex items-start gap-3">
-                <div className="mt-3 flex size-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#3871C1,#51ADE5)] text-sm font-extrabold text-white">
-                  {i + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <DashboardCard
-                    r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
-                    mostrarSaldo={esAdmin}
-                    contexto="entrega"
-                    soloLectura={!esHoy}
-                  />
-                </div>
+              <li key={r.id}>
+                <DashboardCard
+                  r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
+                  mostrarSaldo={esAdmin}
+                  contexto="entrega"
+                  soloLectura={!esHoy}
+                  numero={i + 1}
+                />
               </li>
             ))}
           </ol>
@@ -135,16 +131,16 @@ export default async function RutaPage({
                   className="absolute inset-0 size-full border-0"
                 />
               ) : (
-                <div className="flex size-full items-center justify-center bg-[linear-gradient(135deg,#dce9f7,#eaf3fb)]">
+                <div className="flex size-full items-center justify-center bg-[linear-gradient(135deg,#dce9f7,#eaf3fb)] dark:bg-[linear-gradient(135deg,#16283f,#101c2c)]">
                   <Navigation className="size-10 text-primary/40" />
                 </div>
               )}
-              <div className="pointer-events-none absolute top-3.5 left-3.5 flex items-center gap-2 rounded-[10px] bg-white/90 px-3 py-2 text-xs font-bold shadow">
-                <span className="size-2.5 rounded-full bg-[#152b47]" />
+              <div className="pointer-events-none absolute top-3.5 left-3.5 flex items-center gap-2 rounded-[10px] bg-card/90 px-3 py-2 text-xs font-bold text-card-foreground shadow">
+                <span className="size-2.5 rounded-full bg-[#152b47] dark:bg-primary" />
                 Bodega
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-[#eef2f8] p-4 text-[13px]">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-2 border-t border-linea p-4 text-[13px]">
               <span className="font-extrabold">Resumen de la ruta</span>
               <span className="text-muted-foreground">
                 Paradas{" "}
