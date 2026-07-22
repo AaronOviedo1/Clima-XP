@@ -1,24 +1,53 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  EncabezadoMovilSkeleton,
+  KpiSkeleton,
+  ListaSkeleton,
+  TarjetaRentaSkeleton,
+  TituloSkeleton,
+} from "@/components/skeletons";
 
-// Skeleton genérico para toda navegación dentro del shell: el header y la
-// navegación persisten, así que el click responde al instante.
+// Skeleton de "Hoy" (y respaldo de las rutas que no tienen el suyo): calca el
+// encabezado móvil, los KPIs y las dos columnas de entregas / mañana.
 export default function Loading() {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-36" />
-        <Skeleton className="h-9 w-24" />
+    <div className="space-y-6">
+      <EncabezadoMovilSkeleton conSaludo conBoton conSubtitulo />
+
+      {/* KPIs: 2 columnas en móvil, 3 en escritorio (el tercero es de admin). */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <KpiSkeleton />
+        <KpiSkeleton />
+        <KpiSkeleton className="col-span-2 lg:col-span-1" />
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
-        <Skeleton className="h-20" />
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_372px] lg:items-start">
+        <div className="space-y-6">
+          <section>
+            <TituloSkeleton ancho="w-36" />
+            <div className="space-y-3">
+              <TarjetaRentaSkeleton />
+              <TarjetaRentaSkeleton />
+            </div>
+          </section>
+          <section>
+            <TituloSkeleton ancho="w-44" />
+            <div className="space-y-3">
+              <TarjetaRentaSkeleton />
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-6">
+          <section>
+            <TituloSkeleton ancho="w-24" />
+            <ListaSkeleton filas={3} />
+          </section>
+          <section>
+            <TituloSkeleton ancho="w-40" />
+            <ListaSkeleton filas={4} />
+          </section>
+        </div>
       </div>
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-20 w-full" />
-      <Skeleton className="h-20 w-full" />
     </div>
   );
 }
