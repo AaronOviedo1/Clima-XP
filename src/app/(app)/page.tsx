@@ -135,13 +135,24 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Header solo móvil (en desktop lo cubre el TopBar) */}
       <div className="relative flex items-start justify-between gap-3 lg:hidden">
+        {/* En claro va el logo circular; en oscuro su disco azul se ve como un
+            parche, así que se usa el logotipo transparente (texto blanco). */}
         <Image
           src="/HD_sinFondo.png"
           alt="ClimaXpress"
           width={1449}
           height={1428}
           priority
-          className="pointer-events-none absolute top-0 left-1/2 h-12 w-auto -translate-x-1/2 opacity-90"
+          className="pointer-events-none absolute top-0 left-1/2 h-12 w-auto -translate-x-1/2 opacity-90 dark:hidden"
+        />
+        <Image
+          src="/logo-app.png"
+          alt=""
+          aria-hidden
+          width={1290}
+          height={842}
+          priority
+          className="pointer-events-none absolute top-0 left-1/2 hidden h-10 w-auto -translate-x-1/2 opacity-90 dark:block"
         />
         <div className="relative">
           <div className="text-sm font-semibold text-muted-foreground">

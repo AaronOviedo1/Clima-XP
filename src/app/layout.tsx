@@ -63,7 +63,15 @@ export default function RootLayout({
       <body className="min-h-full">
         <ThemeProvider>
           {children}
-          <Toaster position="top-center" duration={2000} />
+          {/* En la PWA de iOS el contenido corre bajo la barra de estado
+              (viewportFit: cover), así que un toast arriba del todo queda
+              tapado por el notch: se baja con el área segura. */}
+          <Toaster
+            position="top-center"
+            duration={2000}
+            offset={{ top: "16px" }}
+            mobileOffset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+          />
         </ThemeProvider>
       </body>
     </html>

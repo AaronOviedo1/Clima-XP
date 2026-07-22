@@ -13,6 +13,7 @@ import { linkMapsPunto } from "@/lib/maps";
 import { formatoTelefono, paraWhatsApp, linkWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DialogoEntrega } from "@/components/dialogo-entrega";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,8 @@ export function DashboardCard({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [dialogEntrega, setDialogEntrega] = useState(false);
+  // El aviso se congela al abrir el diálogo: lo que se ve es lo que se manda.
+  const [avisoRuta, setAvisoRuta] = useState<string | null>(null);
 
   const wa = paraWhatsApp(r.telefono);
   const maps = linkMapsPunto(r.direccion, r.lat, r.lng);
@@ -63,38 +66,41 @@ export function DashboardCard({
     });
   }
 
-  // Aviso al cliente de que ya vamos en camino. El saludo se ajusta a la hora
-  // del dispositivo y la palabra del equipo al tipo rentado.
+  // Aviso al cliente de que ya van en camino. El saludo se ajusta a la hora
+  // del dispositivo. Se arma en el click (no en el render) para no calcular la
+  // hora al hidratar y para que el saludo refleje el momento del envío.
   function mensajeEnRuta() {
     const h = new Date().getHours();
     const saludo = h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
-    const soloCalenton =
-      r.tiposEquipo.length === 1 && r.tiposEquipo[0] === "CALENTON";
-    const soloCooler =
-      r.tiposEquipo.length === 1 && r.tiposEquipo[0] === "AEROCOOLER";
-    const equipo = soloCalenton
-      ? "su calentón"
-      : soloCooler
-        ? "su aerocooler"
-        : "su equipo";
-    return `${saludo}, ya vamos en camino a entregarle ${equipo}.`;
+    return `${saludo}, ya van en camino a entregarle👍`;
   }
 
-  // Al marcar "En ruta": abrir WhatsApp con el aviso y cambiar el estado.
-  // Se abre disparando el click de un <a> creado al vuelo (no window.open, que
-  // la PWA instalada en iOS bloquea en silencio). El mensaje se arma aquí, en
-  // el gesto de click, para no calcular la hora en el render (evita desajustes
-  // de hidratación) y para que el saludo refleje el momento del envío.
-  function enRuta() {
+  // "En ruta" pregunta primero si se avisa al cliente: no siempre se manda el
+  // WhatsApp. Sin teléfono no hay nada que preguntar.
+  function pedirAviso() {
     if (pending) return;
-    const url = linkWhatsApp(r.telefono, mensajeEnRuta());
-    if (url) {
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.click();
+    if (!r.telefono) {
+      accion("EN_RUTA");
+      return;
     }
+    setAvisoRuta(mensajeEnRuta());
+  }
+
+  // El WhatsApp se abre disparando el click de un <a> creado al vuelo (no
+  // window.open, que la PWA instalada en iOS bloquea en silencio); sigue siendo
+  // el gesto de click del usuario, así que iOS lo permite.
+  function enRuta(avisar: boolean) {
+    if (avisar) {
+      const url = linkWhatsApp(r.telefono, avisoRuta ?? mensajeEnRuta());
+      if (url) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.click();
+      }
+    }
+    setAvisoRuta(null);
     accion("EN_RUTA");
   }
 
@@ -192,7 +198,7 @@ export function DashboardCard({
                 variant="secondary"
                 className="h-11 flex-1"
                 disabled={pending}
-                onClick={enRuta}
+                onClick={pedirAviso}
               >
                 <Truck className="size-4" /> En ruta
               </Button>
@@ -235,6 +241,33 @@ export function DashboardCard({
         onConfirmar={confirmarEntrega}
         pending={pending}
       />
+
+      <Dialog
+        open={avisoRuta !== null}
+        onOpenChange={(v) => !v && setAvisoRuta(null)}
+      >
+        <DialogContent aria-describedby={undefined} className="sm:max-w-sm">
+          <DialogTitle>¿Avisar a {r.clienteNombre}?</DialogTitle>
+          <p className="rounded-lg bg-muted px-3 py-2.5 text-sm">{avisoRuta}</p>
+          <div className="space-y-2">
+            <Button
+              className="h-11 w-full"
+              disabled={pending}
+              onClick={() => enRuta(true)}
+            >
+              <MessageCircle className="size-4" /> Avisar por WhatsApp
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11 w-full"
+              disabled={pending}
+              onClick={() => enRuta(false)}
+            >
+              Solo marcar en ruta
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
