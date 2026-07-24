@@ -28,6 +28,7 @@ import { RentaAcciones } from "@/components/renta-acciones";
 import { RentaCorregirEstado } from "@/components/renta-corregir-estado";
 import { PagoForm } from "@/components/pago-form";
 import { PagoEliminarBoton } from "@/components/pago-eliminar-boton";
+import { RentaEliminarBoton } from "@/components/renta-eliminar-boton";
 
 const METODO_LABEL: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -346,6 +347,17 @@ export function RentaDetalle({
         <Colapsable titulo="Notas">
           <p className="whitespace-pre-wrap text-sm text-muted-foreground">{renta.notas}</p>
         </Colapsable>
+      )}
+
+      {/* Borrar de verdad (solo admin): rentas de prueba o mal capturadas. */}
+      {esAdmin && (
+        <div className="pt-2">
+          <RentaEliminarBoton
+            rentaId={renta.id}
+            resumen={`la renta de ${renta.cliente.nombre} (${periodo})`}
+            pagos={renta.pagos.length}
+          />
+        </div>
       )}
     </div>
   );

@@ -636,6 +636,54 @@ export async function corregirEstadoRenta(
   }
 }
 
+// Borra una renta de verdad (solo admin): para capturas de prueba o errores que
+// no tiene sentido dejar en el historial como CANCELADA. Cancelar sigue siendo
+// lo correcto cuando la renta existió y el cliente se echó para atrás.
+//
+// RentaUnidad/RentaAccesorio caen por `onDelete: Cascade`, pero Pago y
+// MensajeWhatsApp no lo tienen en el schema: si no se borran antes, Postgres
+// rechaza el delete por la llave foránea. Todo va en una transacción.
+export async function eliminarRenta(rentaId: string): Promise<RentaActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo el administrador puede eliminar una renta." };
+  }
+  try {
+    let clienteId = "";
+    await prisma.$transaction(async (tx) => {
+      const renta = await tx.renta.findUnique({
+        where: { id: rentaId },
+        include: { unidades: true },
+      });
+      if (!renta) throw new Error("Renta no encontrada.");
+      clienteId = renta.clienteId;
+
+      // Si el equipo estaba en la calle por esta renta, regresarlo a
+      // disponible; MANTENIMIENTO/BAJA no se tocan (no los causó la renta).
+      const unidadIds = renta.unidades.map((u) => u.unidadId);
+      if (unidadIds.length) {
+        await tx.unidad.updateMany({
+          where: { id: { in: unidadIds }, estado: "RENTADA" },
+          data: { estado: "DISPONIBLE" },
+        });
+      }
+
+      await tx.pago.deleteMany({ where: { rentaId } });
+      await tx.mensajeWhatsApp.deleteMany({ where: { rentaId } });
+      await tx.renta.delete({ where: { id: rentaId } });
+    });
+
+    revalidatePath("/rentas");
+    revalidatePath("/");
+    revalidatePath("/ruta");
+    revalidatePath("/calendario");
+    revalidatePath("/reportes");
+    if (clienteId) revalidatePath(`/clientes/${clienteId}`);
+    return { ok: true, id: rentaId };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo eliminar la renta." };
+  }
+}
+
 // ---------- Pagos ----------
 const pagoSchema = z.object({
   monto: z.number().int().positive("El monto debe ser mayor a 0"),
