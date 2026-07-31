@@ -10,11 +10,9 @@ import { RentaForm } from "@/components/renta-form";
 export async function RentaNueva({
   clientePreseleccionado,
   enModal = false,
-  modo = "renta",
 }: {
   clientePreseleccionado?: string;
   enModal?: boolean;
-  modo?: "renta" | "cotizacion";
 }) {
   const inicio = hoyNegocio();
   const fin = sumarDiasInput(inicio, 1);
@@ -34,7 +32,6 @@ export async function RentaNueva({
       fechasIniciales={{ inicio, fin }}
       clientePreseleccionado={clientePreseleccionado}
       enModal={enModal}
-      modo={modo}
     />
   );
 }

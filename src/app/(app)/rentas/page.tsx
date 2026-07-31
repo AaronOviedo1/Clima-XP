@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ChevronRight, FileImage } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -15,7 +15,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Buscador } from "@/components/buscador";
-import { AccionesSeccion, CLASE_ACCION_TOP_BAR } from "@/components/desktop/seccion";
 import { DIA_SEMANA_META, claseColorDia, colorBarraDia } from "@/lib/colores-dia";
 import {
   claveSemana,
@@ -175,30 +174,14 @@ export default async function RentasPage({
       {/* Header solo móvil (en desktop lo cubre el TopBar). */}
       <div className="flex items-center justify-between gap-2 lg:hidden">
         <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-[-0.02em]">Rentas</h1>
-        <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href="/rentas/nueva?modo=cotizacion"
-            aria-label="Nueva cotización"
-            className="flex size-11 items-center justify-center rounded-full border border-linea bg-superficie-suave text-medio transition-transform active:scale-90"
-          >
-            <FileImage className="size-5" />
-          </Link>
-          <Link
-            href="/rentas/nueva"
-            aria-label="Nueva renta"
-            className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_var(--primary)] transition-transform active:scale-90"
-          >
-            <Plus className="size-5" />
-          </Link>
-        </div>
-      </div>
-
-      {/* En escritorio el TopBar ya trae "Nueva renta"; aquí sube "Cotizar". */}
-      <AccionesSeccion>
-        <Link href="/rentas/nueva?modo=cotizacion" className={CLASE_ACCION_TOP_BAR}>
-          <FileImage className="size-4" /> Cotizar
+        <Link
+          href="/rentas/nueva"
+          aria-label="Nueva renta"
+          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_var(--primary)] transition-transform active:scale-90"
+        >
+          <Plus className="size-5" />
         </Link>
-      </AccionesSeccion>
+      </div>
       <div className="lg:hidden">
         <Buscador placeholder="Buscar por cliente, teléfono, dirección o equipo…" />
       </div>

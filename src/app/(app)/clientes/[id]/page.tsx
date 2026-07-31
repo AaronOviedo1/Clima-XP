@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, FileImage, MessageCircle, Pencil, Plus } from "lucide-react";
+import { ChevronLeft, MessageCircle, Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { rentaListSelect } from "@/lib/rentas";
 import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
@@ -80,18 +80,11 @@ export default async function ClienteDetallePage({
         <h2 className="text-lg font-semibold">
           Rentas ({cliente.rentas.length})
         </h2>
-        <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/rentas/nueva?cliente=${cliente.id}&modo=cotizacion`}>
-              <FileImage className="size-4" /> Cotizar
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/rentas/nueva?cliente=${cliente.id}`}>
-              <Plus className="size-4" /> Nueva renta
-            </Link>
-          </Button>
-        </div>
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/rentas/nueva?cliente=${cliente.id}`}>
+            <Plus className="size-4" /> Nueva renta
+          </Link>
+        </Button>
       </div>
 
       {cliente.rentas.length === 0 ? (

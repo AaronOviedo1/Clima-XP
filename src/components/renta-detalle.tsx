@@ -209,11 +209,10 @@ export function RentaDetalle({
         </div>
       )}
 
-      {/* Una cotización se manda como hoja: el botón vive arriba de las
-          acciones, que es lo primero que se hace después de capturarla. */}
-      {renta.estado === "COTIZADA" && (
-        <CotizacionBoton rentaId={renta.id} cliente={renta.cliente.nombre} />
-      )}
+      {/* La hoja se puede mandar desde cualquier renta, no solo desde una
+          cotización: sirve igual para confirmarle al cliente lo que se acordó.
+          Lleva precios, así que es solo para admin. */}
+      {esAdmin && <CotizacionBoton rentaId={renta.id} cliente={renta.cliente.nombre} />}
 
       {/* Acciones de estado (En ruta / Entregado / Recogido) */}
       <RentaAcciones
