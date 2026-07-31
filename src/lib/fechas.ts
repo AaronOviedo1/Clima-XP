@@ -39,6 +39,11 @@ export function fechaCorta(fecha: Date): string {
   return format(diaCalendario(fecha), "d MMM yyyy", { locale: es });
 }
 
+// "29 junio 2025" — mes completo sin día de la semana (hoja de cotización).
+export function fechaConMes(fecha: Date): string {
+  return format(diaCalendario(fecha), "d MMMM yyyy", { locale: es });
+}
+
 // Fecha de hoy en la zona del negocio, como "yyyy-mm-dd".
 export function hoyNegocio(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ_NEGOCIO }).format(new Date());

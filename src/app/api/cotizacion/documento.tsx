@@ -10,54 +10,101 @@ import { pesos } from "@/lib/dinero";
 // satori: solo flexbox, `display: flex` explícito en todo contenedor con más de
 // un hijo, y nada de emoji (los tendría que bajar de un CDN).
 
-const AZUL = "#152b47"; // el mismo azul del header móvil
-const TINTA = "#0f172a";
-const TENUE = "#64748b";
-const LINEA = "#e2e8f0";
-const FONDO = "#ffffff";
+const TINTA = "#1e2a3a";
+const AZUL_TITULO = "#1f4c8f";
+const AZUL_ENCABEZADO = "#a9c4ee";
+const AZUL_CELDA = "#c6d9f7";
+const AMBAR_CELDA = "#fbedca";
+const MARCO = "#d8dce3";
+const BLANCO = "#ffffff";
 
 export const ANCHO = 1000;
 
-// Satori no pagina (lo que se desborda se corta) y sin `height` la imagen sale
-// con el alto por defecto de la librería, así que hay que calcularlo: son las
-// alturas reales de los bloques de abajo, sumadas.
-const ALTO_MARCO = 548; // padding + encabezado + cliente/periodo + caja del total
-const ALTO_LINEA = 123; // cada renglón de equipos
-const ALTO_RENGLON = 51; // cada renglón de la suma (equipos, domicilio, descuento)
-const ALTO_CLIENTE = 55; // el nombre, cuando la cotización trae cliente
+// Anchos de las columnas de la tabla (suman 1).
+const COL = { equipo: 0.24, cantidad: 0.19, precio: 0.21, dias: 0.18, importe: 0.18 };
 
+const PADDING = 44;
+const ANCHO_UTIL = ANCHO - PADDING * 2;
+const SEPARACION = 8; // hueco blanco entre celdas, como en el formato
+const ALTO_FILA = 62;
+const ALTO_ENCABEZADO = 52;
+
+// Satori no pagina (lo que se desborda se corta) y sin `height` la imagen sale
+// con el alto por defecto, así que hay que calcularlo.
 export function altoDocumento(hoja: HojaCotizacion): number {
-  const renglones = 1 + (hoja.costoDomicilio > 0 ? 1 : 0) + (hoja.descuentoMonto > 0 ? 1 : 0);
-  return (
-    ALTO_MARCO +
-    (hoja.cliente ? ALTO_CLIENTE : 0) +
-    hoja.lineas.length * ALTO_LINEA +
-    renglones * ALTO_RENGLON
+  const cabecera = 260; // marco + logo + chip de fecha
+  const tablas = hoja.grupos.reduce(
+    (acc, g) => acc + ALTO_ENCABEZADO + SEPARACION + g.lineas.length * (ALTO_FILA + SEPARACION),
+    0,
   );
+  const totalEquipos = ALTO_FILA + 24;
+  const renglones =
+    (hoja.costoDomicilio > 0 ? 1 : 0) +
+    (hoja.descuentoMonto > 0 ? 1 : 0) +
+    (hoja.iva != null ? 1 : 0) +
+    1; // el TOTAL siempre
+  return Math.round(cabecera + tablas + totalEquipos + renglones * (ALTO_FILA + SEPARACION) + 40);
 }
 
-function Renglon({
-  etiqueta,
-  valor,
-  tenue = false,
+function ancho(fraccion: number): number {
+  return Math.round(ANCHO_UTIL * fraccion) - SEPARACION;
+}
+
+// Celda de la tabla: fondo de color, texto centrado, esquinas suaves.
+function Celda({
+  texto,
+  w,
+  fondo,
+  color = TINTA,
+  fuerte = false,
+  tamano = 22,
+  sub,
+  crece = false,
 }: {
-  etiqueta: string;
-  valor: string;
-  tenue?: boolean;
+  texto: string;
+  w?: number;
+  fondo: string;
+  color?: string;
+  fuerte?: boolean;
+  tamano?: number;
+  sub?: string;
+  crece?: boolean;
 }) {
   return (
     <div
       style={{
         display: "flex",
-        justifyContent: "space-between",
+        flexDirection: "column",
         alignItems: "center",
-        fontSize: 30,
-        color: tenue ? TENUE : TINTA,
-        marginTop: 12,
+        justifyContent: "center",
+        ...(crece ? { flexGrow: 1 } : { width: w }),
+        height: ALTO_FILA,
+        marginRight: SEPARACION,
+        backgroundColor: fondo,
+        borderRadius: 10,
+        padding: "0 10px",
       }}
     >
-      <span>{etiqueta}</span>
-      <span>{valor}</span>
+      <span
+        style={{
+          fontSize: tamano,
+          fontWeight: fuerte ? 800 : 400,
+          color,
+          textAlign: "center",
+          lineHeight: 1.15,
+        }}
+      >
+        {texto}
+      </span>
+      {sub ? <span style={{ fontSize: 13, color: "#6b7a8d", marginTop: 2 }}>{sub}</span> : null}
+    </div>
+  );
+}
+
+function Fila({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", marginBottom: SEPARACION }}>
+      {children}
     </div>
   );
 }
@@ -69,6 +116,8 @@ export function DocumentoCotizacion({
   hoja: HojaCotizacion;
   logo: string | null;
 }) {
+  const dias = String(hoja.dias);
+
   return (
     <div
       style={{
@@ -76,113 +125,153 @@ export function DocumentoCotizacion({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: FONDO,
+        backgroundColor: BLANCO,
         color: TINTA,
         fontFamily: "Manrope",
-        padding: 56,
+        border: `3px solid ${MARCO}`,
+        borderRadius: 28,
+        padding: PADDING,
       }}
     >
-      {/* Encabezado */}
+      {/* Encabezado: logo al centro y la fecha de entrega a la derecha */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: `3px solid ${AZUL}`,
-          paddingBottom: 28,
+          marginBottom: 34,
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: 46, fontWeight: 800, color: AZUL }}>Climaxpress</span>
-          <span style={{ fontSize: 28, color: TENUE, marginTop: 4 }}>
-            Cotización de renta
-          </span>
-        </div>
+        <div style={{ display: "flex", width: 150 }} />
         {logo ? (
           // next/image no existe para satori: aquí solo hay <img>.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} width={120} height={120} alt="" style={{ objectFit: "contain" }} />
-        ) : null}
+          <img src={logo} width={150} height={150} alt="" style={{ objectFit: "contain" }} />
+        ) : (
+          <span style={{ fontSize: 42, fontWeight: 800, color: AZUL_TITULO }}>Climaxpress</span>
+        )}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            backgroundColor: AZUL_CELDA,
+            borderRadius: 12,
+            padding: "12px 18px",
+          }}
+        >
+          <span style={{ fontSize: 19, fontWeight: 800, color: AZUL_TITULO, marginRight: 8 }}>
+            FECHA:
+          </span>
+          <span style={{ fontSize: 19, fontWeight: 800 }}>{hoja.fecha}</span>
+        </div>
       </div>
 
-      {/* Cliente y periodo */}
-      <div style={{ display: "flex", flexDirection: "column", marginTop: 32 }}>
-        {hoja.cliente ? (
-          <span style={{ fontSize: 38, fontWeight: 800 }}>{hoja.cliente}</span>
-        ) : null}
-        <span style={{ fontSize: 30, color: TENUE, marginTop: hoja.cliente ? 6 : 0 }}>
-          {hoja.periodo} · {hoja.dias} {hoja.dias === 1 ? "día" : "días"}
-        </span>
-      </div>
-
-      {/* Equipos */}
-      <div style={{ display: "flex", flexDirection: "column", marginTop: 36 }}>
-        {hoja.lineas.map((l) => (
-          <div
-            key={l.modelo}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderBottom: `1px solid ${LINEA}`,
-              paddingBottom: 20,
-              marginBottom: 20,
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: 34, fontWeight: 800 }}>
-                {l.cantidad} × {l.modelo}
-              </span>
-              <span style={{ fontSize: 26, color: TENUE, marginTop: 4 }}>
-                {pesos(l.precioDia)} por día · {hoja.dias}{" "}
-                {hoja.dias === 1 ? "día" : "días"}
-              </span>
-            </div>
-            <span style={{ fontSize: 34 }}>{pesos(l.subtotal)}</span>
+      {/* Una tabla por tipo de equipo (aerocoolers / calentones) */}
+      {hoja.grupos.map((g) => (
+        <div key={g.titulo} style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", marginBottom: SEPARACION }}>
+            {[
+              [g.titulo, COL.equipo],
+              ["CANTIDAD", COL.cantidad],
+              ["PRECIO X UNIDAD", COL.precio],
+              ["DIAS", COL.dias],
+              ["IMPORTE", COL.importe],
+            ].map(([texto, fraccion]) => (
+              <div
+                key={texto as string}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: ancho(fraccion as number),
+                  height: ALTO_ENCABEZADO,
+                  marginRight: SEPARACION,
+                  backgroundColor: AZUL_ENCABEZADO,
+                  borderRadius: 10,
+                  padding: "0 8px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: AZUL_TITULO,
+                    textAlign: "center",
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {texto as string}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
+
+          {g.lineas.map((l) => (
+            <Fila key={l.modelo}>
+              <Celda texto={l.modelo.toUpperCase()} w={ancho(COL.equipo)} fondo={AZUL_CELDA} tamano={19} />
+              <Celda texto={String(l.cantidad)} w={ancho(COL.cantidad)} fondo={AZUL_CELDA} />
+              <Celda texto={pesos(l.precioDia)} w={ancho(COL.precio)} fondo={AZUL_CELDA} />
+              <Celda texto={dias} w={ancho(COL.dias)} fondo={AZUL_CELDA} />
+              <Celda texto={pesos(l.importe)} w={ancho(COL.importe)} fondo={AZUL_CELDA} />
+            </Fila>
+          ))}
+        </div>
+      ))}
+
+      {/* Total de equipos, alineado con las dos últimas columnas */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, marginBottom: 24 }}>
+        <Celda texto="TOTAL" w={ancho(COL.dias)} fondo={AZUL_CELDA} fuerte />
+        <div style={{ display: "flex", marginRight: -SEPARACION }}>
+          <Celda texto={pesos(hoja.subtotalEquipos)} w={ancho(COL.importe)} fondo={AZUL_CELDA} fuerte />
+        </div>
       </div>
 
-      {/* Totales */}
-      <div style={{ display: "flex", flexDirection: "column", marginTop: 4 }}>
-        <Renglon etiqueta="Equipos" valor={pesos(hoja.subtotalEquipos)} tenue />
-        {hoja.costoDomicilio > 0 ? (
-          <Renglon
-            etiqueta={
-              hoja.distanciaKm
-                ? `Servicio a domicilio (${hoja.distanciaKm.toFixed(1)} km)`
-                : "Servicio a domicilio"
-            }
-            valor={pesos(hoja.costoDomicilio)}
-            tenue
+      {/* Cargos: solo salen los que aplican a esta renta */}
+      {hoja.costoDomicilio > 0 && (
+        <Fila>
+          <Celda
+            texto="SERV A DOM + INSTALACIÓN"
+            w={ancho(COL.equipo)}
+            fondo={AMBAR_CELDA}
+            fuerte
+            tamano={18}
           />
-        ) : null}
-        {hoja.descuentoMonto > 0 ? (
-          <Renglon
-            etiqueta={hoja.descuentoNota ? `Descuento (${hoja.descuentoNota})` : "Descuento"}
-            valor={`− ${pesos(hoja.descuentoMonto)}`}
-            tenue
-          />
-        ) : null}
-      </div>
+          <Celda texto={pesos(hoja.costoDomicilio)} fondo={AMBAR_CELDA} crece />
+        </Fila>
+      )}
 
-      {/* Total */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          backgroundColor: AZUL,
-          borderRadius: 20,
-          padding: "26px 32px",
-          marginTop: 34,
-        }}
-      >
-        <span style={{ fontSize: 36, color: "#dbeafe" }}>Total</span>
-        <span style={{ fontSize: 56, fontWeight: 800, color: "#ffffff" }}>
-          {pesos(hoja.total)}
-        </span>
-      </div>
+      {hoja.descuentoMonto > 0 && (
+        <Fila>
+          <Celda texto="DESCUENTO" w={ancho(COL.equipo + COL.cantidad)} fondo={AMBAR_CELDA} fuerte />
+          <Celda texto={hoja.descuentoPct ?? ""} w={ancho(COL.precio)} fondo={AMBAR_CELDA} />
+          <Celda texto={pesos(hoja.descuentoMonto)} w={ancho(COL.dias)} fondo={AMBAR_CELDA} />
+          <Celda
+            texto={pesos(hoja.subtotalConDescuento)}
+            w={ancho(COL.importe)}
+            fondo={AMBAR_CELDA}
+            sub="TOTAL"
+          />
+        </Fila>
+      )}
+
+      {hoja.iva != null && (
+        <Fila>
+          <Celda texto="IVA" w={ancho(COL.equipo + COL.cantidad)} fondo={AMBAR_CELDA} fuerte />
+          <Celda texto="16%" w={ancho(COL.precio)} fondo={AMBAR_CELDA} />
+          <Celda texto={pesos(hoja.iva)} w={ancho(COL.dias)} fondo={AMBAR_CELDA} sub="IVA" />
+          <Celda
+            texto={pesos(hoja.total)}
+            w={ancho(COL.importe)}
+            fondo={AMBAR_CELDA}
+            sub="IVA + TOTAL"
+          />
+        </Fila>
+      )}
+
+      <Fila>
+        <Celda texto="TOTAL" w={ancho(COL.equipo)} fondo={AMBAR_CELDA} fuerte tamano={24} />
+        <Celda texto={pesos(hoja.total)} fondo={AMBAR_CELDA} fuerte tamano={30} crece />
+      </Fila>
     </div>
   );
 }
