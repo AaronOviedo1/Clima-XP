@@ -205,6 +205,9 @@ export function RentaForm({
 
   const [notas, setNotas] = useState(ini?.notas ?? "");
   const [error, setError] = useState<string | null>(null);
+  // Dirección fuera del área de servicio (solo se renta en Hermosillo): mientras
+  // tenga motivo, no se guarda.
+  const [fueraDeCobertura, setFueraDeCobertura] = useState<string | null>(null);
 
   // Recargar unidades disponibles al cambiar las fechas.
   function recargarUnidades(inicio: string, fin: string) {
@@ -263,6 +266,7 @@ export function RentaForm({
     setLng(nuevoLng);
     setLinkMaps(nuevoLinkMaps);
     if (res.km != null) setDistanciaKm(nuevaDistancia);
+    setFueraDeCobertura(res.fueraDeCobertura);
 
     let nuevoCosto = costoDomicilio;
     let nuevaNota = notaDomicilio;
@@ -288,6 +292,7 @@ export function RentaForm({
       distanciaKm: nuevaDistancia,
       costoDomicilio: nuevoCosto,
       notaDomicilio: nuevaNota,
+      fueraDeCobertura: res.fueraDeCobertura,
     };
   }
 
@@ -348,10 +353,10 @@ export function RentaForm({
   // siempre hay algo con qué geocodificar.
   async function calcularUbicacionSiFalta() {
     if (lat != null || distanciaKm) {
-      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio };
+      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio, fueraDeCobertura };
     }
     if (!ubicacionTexto.trim() && !direccion.trim()) {
-      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio };
+      return { lat, lng, linkMaps, distanciaKm, costoDomicilio, notaDomicilio, fueraDeCobertura };
     }
     const res = await ubicarCompleto({ ubicacion: ubicacionTexto, direccion });
     return aplicarResultadoUbicacion(res);
@@ -418,10 +423,18 @@ export function RentaForm({
       return setError("La dirección es obligatoria.");
     if (descuentoMonto > 0 && !descuentoNota.trim())
       return setError("El descuento requiere una nota con el motivo.");
+    if (fueraDeCobertura) return setError(fueraDeCobertura);
 
     startSubmit(async () => {
       // Calcula la distancia y el costo de domicilio sola si nadie tocó "Ubicar".
       const ubic = await calcularUbicacionSiFalta();
+      // Si la dirección se resolvió apenas ahora y cayó fuera de Hermosillo, se
+      // corta aquí: la renta no llega a guardarse.
+      if (ubic.fueraDeCobertura) {
+        setError(ubic.fueraDeCobertura);
+        toast.error(ubic.fueraDeCobertura);
+        return;
+      }
       const notaCompleta = [ubic.notaDomicilio, notas].filter(Boolean).join(" · ");
 
       const base = {
@@ -730,6 +743,11 @@ export function RentaForm({
                   ver
                 </a>
               )}
+            </p>
+          )}
+          {fueraDeCobertura && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
+              {fueraDeCobertura}
             </p>
           )}
         </div>

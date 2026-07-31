@@ -30,7 +30,13 @@ import {
   esUrl,
   type Coordenadas,
 } from "@/lib/coordenadas";
-import { geocodificarDireccion, distanciaKmDesde, mapsHabilitado } from "@/lib/google-maps";
+import {
+  geocodificarDireccion,
+  distanciaKmDesde,
+  mapsHabilitado,
+  type Localidad,
+} from "@/lib/google-maps";
+import { motivoFueraDeCobertura } from "@/lib/cobertura";
 import { obtenerBodega } from "@/lib/configuracion";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
@@ -83,6 +89,9 @@ export type UbicacionCompleta = {
   minutos: number | null;
   sugerencia: SugerenciaDomicilio | null;
   avisos: string[];
+  // Motivo por el que la dirección queda fuera del área de servicio (solo se
+  // renta en Hermosillo). El formulario lo muestra y no deja guardar.
+  fueraDeCobertura: string | null;
 };
 
 export async function ubicarCompleto(entrada: {
@@ -93,6 +102,8 @@ export async function ubicarCompleto(entrada: {
   let coords: Coordenadas | null = null;
   let linkMaps: string | null = null;
   let direccionFormateada: string | null = null;
+
+  let localidad: Localidad | null = null;
 
   const ubicacion = entrada.ubicacion?.trim() ?? "";
   const direccion = entrada.direccion?.trim() ?? "";
@@ -113,6 +124,7 @@ export async function ubicarCompleto(entrada: {
       if (g.ok) {
         coords = g.coords;
         direccionFormateada = g.direccionFormateada;
+        localidad = g.localidad;
       } else {
         avisos.push(g.error);
       }
@@ -145,7 +157,20 @@ export async function ubicarCompleto(entrada: {
     }
   }
 
-  return { coords, linkMaps, direccionFormateada, km, minutos, sugerencia, avisos };
+  // Solo se renta en Hermosillo: con el punto y los km ya resueltos, se
+  // comprueba antes de que el admin siga capturando la renta.
+  const fueraDeCobertura = await motivoFueraDeCobertura({ coords, localidad, km });
+
+  return {
+    coords,
+    linkMaps,
+    direccionFormateada,
+    km,
+    minutos,
+    sugerencia,
+    avisos,
+    fueraDeCobertura,
+  };
 }
 
 // ---------- Disponibilidad para el formulario ----------
@@ -220,6 +245,20 @@ export type RentaActionResult =
   | { error: string }
   | { ok: true; id: string; aviso?: string };
 
+// Solo se renta en Hermosillo. El formulario ya lo avisa al ubicar, pero la
+// action lo vuelve a checar: el punto y los km llegan desde el cliente.
+async function fueraDeCobertura(d: {
+  lat?: number | null;
+  lng?: number | null;
+  distanciaKm?: number | null;
+}): Promise<string | null> {
+  if (d.lat == null || d.lng == null) return null;
+  return motivoFueraDeCobertura({
+    coords: { lat: d.lat, lng: d.lng },
+    km: d.distanciaKm ?? null,
+  });
+}
+
 export async function crearRenta(
   input: CrearRentaInput,
 ): Promise<RentaActionResult> {
@@ -237,6 +276,8 @@ export async function crearRenta(
   if (d.descuentoMonto > 0 && !d.descuentoNota) {
     return { error: "Todo descuento requiere una nota con el motivo." };
   }
+  const fuera = await fueraDeCobertura(d);
+  if (fuera) return { error: fuera };
 
   try {
     let aviso: string | undefined;
@@ -351,6 +392,8 @@ export async function editarRenta(
   if (d.descuentoMonto > 0 && !d.descuentoNota) {
     return { error: "Todo descuento requiere una nota con el motivo." };
   }
+  const fuera = await fueraDeCobertura(d);
+  if (fuera) return { error: fuera };
 
   try {
     await prisma.$transaction(async (tx) => {
