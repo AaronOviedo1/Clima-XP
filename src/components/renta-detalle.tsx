@@ -29,6 +29,7 @@ import { RentaCorregirEstado } from "@/components/renta-corregir-estado";
 import { PagoForm } from "@/components/pago-form";
 import { PagoEliminarBoton } from "@/components/pago-eliminar-boton";
 import { RentaEliminarBoton } from "@/components/renta-eliminar-boton";
+import { CotizacionBoton } from "@/components/cotizacion-boton";
 
 const METODO_LABEL: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -208,6 +209,12 @@ export function RentaDetalle({
         </div>
       )}
 
+      {/* Una cotización se manda como hoja: el botón vive arriba de las
+          acciones, que es lo primero que se hace después de capturarla. */}
+      {renta.estado === "COTIZADA" && (
+        <CotizacionBoton rentaId={renta.id} cliente={renta.cliente.nombre} />
+      )}
+
       {/* Acciones de estado (En ruta / Entregado / Recogido) */}
       <RentaAcciones
         rentaId={renta.id}
@@ -220,7 +227,15 @@ export function RentaDetalle({
         <FilaInfo
           icono={<MapPin className="size-[19px]" />}
           label="Dirección"
-          value={<span className="whitespace-pre-wrap">{renta.direccion}</span>}
+          value={
+            renta.direccion ? (
+              <span className="whitespace-pre-wrap">{renta.direccion}</span>
+            ) : (
+              // Una cotización puede no tener dirección todavía; se pide al
+              // convertirla en renta.
+              <span className="text-tenue">Sin capturar</span>
+            )
+          }
         />
         {renta.lugar && (
           <FilaInfo icono={<MapPin className="size-[19px]" />} label="Lugar" value={renta.lugar} />
@@ -253,12 +268,14 @@ export function RentaDetalle({
         )}
       </Card>
 
-      {/* Cómo llegar */}
-      <Button asChild variant="secondary" className="h-12 w-full text-[15px] font-bold">
-        <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
-          <Navigation className="size-[18px]" /> Cómo llegar
-        </a>
-      </Button>
+      {/* Cómo llegar (sin dirección ni coords no hay a dónde ir) */}
+      {(renta.direccion || (renta.lat != null && renta.lng != null)) && (
+        <Button asChild variant="secondary" className="h-12 w-full text-[15px] font-bold">
+          <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+            <Navigation className="size-[18px]" /> Cómo llegar
+          </a>
+        </Button>
+      )}
 
       {/* Equipos */}
       <Colapsable titulo={`Equipos (${renta.unidades.length}) · ${t.dias}d`}>

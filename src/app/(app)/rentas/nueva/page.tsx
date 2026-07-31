@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function NuevaRentaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cliente?: string }>;
+  searchParams: Promise<{ cliente?: string; modo?: string }>;
 }) {
-  const { cliente } = await searchParams;
+  const { cliente, modo } = await searchParams;
+  const cotizando = modo === "cotizacion";
 
   return (
     <div className="space-y-4">
@@ -20,10 +21,15 @@ export default async function NuevaRentaPage({
             <ChevronLeft className="size-5" />
           </Link>
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Nueva renta</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {cotizando ? "Nueva cotización" : "Nueva renta"}
+        </h1>
       </div>
 
-      <RentaNueva clientePreseleccionado={cliente} />
+      <RentaNueva
+        clientePreseleccionado={cliente}
+        modo={cotizando ? "cotizacion" : "renta"}
+      />
     </div>
   );
 }

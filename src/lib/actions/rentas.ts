@@ -21,8 +21,8 @@ import { avisarEntregaMarcada, avisarRentaConfirmada } from "@/lib/avisos";
 import {
   TRANSICIONES,
   ESTADOS_EDITABLES,
-  ESTADOS_CERRADOS,
   UNIDADES_BLOQUEADAS,
+  apartaInventario,
 } from "@/lib/rentas";
 import {
   parseCoordenadas,
@@ -187,7 +187,11 @@ const crearSchema = z.object({
   fechaFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de fin inválida"),
   ventanaEntrega: z.string().trim().optional().nullable(),
   lugar: z.string().trim().optional().nullable(),
-  direccion: z.string().trim().min(1, "La dirección es obligatoria"),
+  // Se valida abajo con superRefine: obligatoria para una renta, opcional al
+  // cotizar (muchas cotizaciones son telefónicas y aún no hay dirección). La
+  // columna es NOT NULL, así que se guarda como "" y no se puede confirmar la
+  // renta sin capturarla (ver cambiarEstadoRenta).
+  direccion: z.string().trim().default(""),
   codigoAcceso: z.string().trim().optional().nullable(),
   lat: z.number().min(-90).max(90).nullable().optional(),
   lng: z.number().min(-180).max(180).nullable().optional(),
@@ -210,7 +214,11 @@ const crearSchema = z.object({
 });
 
 export type CrearRentaInput = z.input<typeof crearSchema>;
-export type RentaActionResult = { error: string } | { ok: true; id: string };
+// `aviso` es información que no impide guardar (p. ej. cotizar equipo que ya
+// está apartado): la UI lo muestra como advertencia, no como error.
+export type RentaActionResult =
+  | { error: string }
+  | { ok: true; id: string; aviso?: string };
 
 export async function crearRenta(
   input: CrearRentaInput,
@@ -223,16 +231,28 @@ export async function crearRenta(
   const inicio = fechaDesdeInput(d.fechaInicio);
   const fin = fechaDesdeInput(d.fechaFin);
   if (fin < inicio) return { error: "La fecha de recolección no puede ser antes de la entrega." };
+  if (d.estado !== "COTIZADA" && !d.direccion) {
+    return { error: "La dirección es obligatoria." };
+  }
   if (d.descuentoMonto > 0 && !d.descuentoNota) {
     return { error: "Todo descuento requiere una nota con el motivo." };
   }
 
   try {
+    let aviso: string | undefined;
     const rentaId = await prisma.$transaction(async (tx) => {
       // Revalidar disponibilidad dentro de la transacción (evita doble apartado).
+      // Una cotización no aparta nada, así que cotizar equipo ocupado se permite
+      // y solo se avisa: negar el precio del fin de semana lleno —el que más se
+      // pregunta— sería peor. El candado real está al confirmarla.
       const ocupadas = await unidadesNoDisponibles(d.unidadIds, inicio, fin, undefined, tx);
       if (ocupadas.length > 0) {
-        throw new Error(`Ya no están disponibles: ${ocupadas.join(", ")}. Actualiza la selección.`);
+        if (d.estado !== "COTIZADA") {
+          throw new Error(
+            `Ya no están disponibles: ${ocupadas.join(", ")}. Actualiza la selección.`,
+          );
+        }
+        aviso = `Ojo: ${ocupadas.join(", ")} ya está(n) apartado(s) en esas fechas.`;
       }
 
       // Traer modelos para calcular el precio efectivo (regla calentones 3+).
@@ -305,7 +325,7 @@ export async function crearRenta(
     // avisarRentaConfirmada solo avisa si la entrega es hoy o mañana.
     if (d.estado === "CONFIRMADA") avisar(() => avisarRentaConfirmada(rentaId));
 
-    return { ok: true, id: rentaId };
+    return { ok: true, id: rentaId, aviso };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo crear la renta." };
   }
@@ -342,6 +362,9 @@ export async function editarRenta(
       if (!ESTADOS_EDITABLES.includes(renta.estado)) {
         throw new Error(`No se puede editar una renta ${renta.estado.toLowerCase()}.`);
       }
+      if (renta.estado !== "COTIZADA" && !d.direccion) {
+        throw new Error("La dirección es obligatoria.");
+      }
 
       const actuales = renta.unidades.map((u) => u.unidadId).sort();
       const nuevasIds = [...d.unidadIds].sort();
@@ -354,9 +377,10 @@ export async function editarRenta(
       }
 
       // Revalidar disponibilidad para el nuevo rango, ignorando esta renta.
-      // Las rentas cerradas no apartan inventario: revalidarlas rechazaría
-      // correcciones al histórico sin que exista conflicto real.
-      if (!ESTADOS_CERRADOS.includes(renta.estado)) {
+      // Solo para las que apartan inventario: revalidar una cerrada rechazaría
+      // correcciones al histórico sin conflicto real, y revalidar una cotizada
+      // impediría mover de fecha un precio que no aparta nada.
+      if (apartaInventario(renta.estado)) {
         const ocupadas = await unidadesNoDisponibles(d.unidadIds, inicio, fin, rentaId, tx);
         if (ocupadas.length > 0) {
           throw new Error(
@@ -462,6 +486,29 @@ export async function cambiarEstadoRenta(
       }
 
       const unidadIds = renta.unidades.map((u) => u.unidadId);
+
+      // Convertir una cotización en renta es el momento en que el equipo se
+      // aparta de verdad: hay que revalidar. La cotización pudo hacerse semanas
+      // antes, y mientras tanto alguien más pudo llevarse esas unidades.
+      if (!apartaInventario(renta.estado) && apartaInventario(nuevoEstado)) {
+        if (!renta.direccion.trim()) {
+          throw new Error("Captura la dirección antes de confirmar la renta.");
+        }
+        if (unidadIds.length) {
+          const ocupadas = await unidadesNoDisponibles(
+            unidadIds,
+            renta.fechaInicio,
+            renta.fechaFin,
+            rentaId,
+            tx,
+          );
+          if (ocupadas.length > 0) {
+            throw new Error(
+              `No se puede confirmar: ${ocupadas.join(", ")} ya está(n) apartado(s) en esas fechas.`,
+            );
+          }
+        }
+      }
 
       // Efectos sobre el inventario:
       // ENTREGADA → unidades RENTADA; RECOGIDA/CANCELADA → DISPONIBLE.

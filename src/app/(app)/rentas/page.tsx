@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight, FileImage } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -9,10 +9,13 @@ import {
   ESTADOS_RENTA,
   ESTADO_RENTA_META,
   ESTADO_CHIP,
+  ESTADOS_SIN_COBRO,
+  type EstadoRentaStr,
 } from "@/lib/rentas";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Buscador } from "@/components/buscador";
+import { AccionesSeccion, CLASE_ACCION_TOP_BAR } from "@/components/desktop/seccion";
 import { DIA_SEMANA_META, claseColorDia, colorBarraDia } from "@/lib/colores-dia";
 import {
   claveSemana,
@@ -116,7 +119,9 @@ export default async function RentasPage({
     }
     const t = totalesDeRenta(r);
     grupo.rentas.push(r);
-    grupo.total += t.total;
+    // Una cotización (o una cancelada) no es ingreso de la semana: es un precio
+    // ofrecido. Se sigue listando, pero no suma al total del grupo.
+    if (!ESTADOS_SIN_COBRO.includes(r.estado as EstadoRentaStr)) grupo.total += t.total;
     grupo.saldo += t.saldo;
   }
 
@@ -153,7 +158,7 @@ export default async function RentasPage({
       href: mkHref({}),
       activo: !estadoFiltro && !soloSaldo,
     },
-    ...(["CONFIRMADA", "EN_RUTA", "ENTREGADA", "CONCLUIDA"] as const).map((e) => ({
+    ...(["COTIZADA", "CONFIRMADA", "EN_RUTA", "ENTREGADA", "CONCLUIDA"] as const).map((e) => ({
       label: ESTADO_RENTA_META[e].label,
       href: mkHref({ estado: e }),
       activo: estadoFiltro === e,
@@ -170,14 +175,30 @@ export default async function RentasPage({
       {/* Header solo móvil (en desktop lo cubre el TopBar). */}
       <div className="flex items-center justify-between gap-2 lg:hidden">
         <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-[-0.02em]">Rentas</h1>
-        <Link
-          href="/rentas/nueva"
-          aria-label="Nueva renta"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_var(--primary)] transition-transform active:scale-90"
-        >
-          <Plus className="size-5" />
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            href="/rentas/nueva?modo=cotizacion"
+            aria-label="Nueva cotización"
+            className="flex size-11 items-center justify-center rounded-full border border-linea bg-superficie-suave text-medio transition-transform active:scale-90"
+          >
+            <FileImage className="size-5" />
+          </Link>
+          <Link
+            href="/rentas/nueva"
+            aria-label="Nueva renta"
+            className="flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_18px_-8px_var(--primary)] transition-transform active:scale-90"
+          >
+            <Plus className="size-5" />
+          </Link>
+        </div>
       </div>
+
+      {/* En escritorio el TopBar ya trae "Nueva renta"; aquí sube "Cotizar". */}
+      <AccionesSeccion>
+        <Link href="/rentas/nueva?modo=cotizacion" className={CLASE_ACCION_TOP_BAR}>
+          <FileImage className="size-4" /> Cotizar
+        </Link>
+      </AccionesSeccion>
       <div className="lg:hidden">
         <Buscador placeholder="Buscar por cliente, teléfono, dirección o equipo…" />
       </div>

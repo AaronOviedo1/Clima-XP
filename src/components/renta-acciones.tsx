@@ -87,7 +87,11 @@ export function RentaAcciones({
               disabled={pending}
               onClick={() => (esEntrega ? setDialogAbierto(true) : ir(d))}
             >
-              {ACCION_ESTADO[d]}
+              {/* Desde una cotización, "Confirmar" es en realidad aceptarla:
+                  es cuando el equipo se aparta de verdad. */}
+              {estado === "COTIZADA" && d === "CONFIRMADA"
+                ? "Convertir en renta"
+                : ACCION_ESTADO[d]}
             </Button>
           );
         })}

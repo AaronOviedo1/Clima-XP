@@ -138,9 +138,13 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
       renta.descuentoMonto,
   );
   const pagadoConfirmado = renta.pagos.reduce((acc, p) => acc + montoNeto(p), 0);
-  // Una renta cancelada no genera cobro: lo que no se haya pagado ya no se debe
-  // (si hubo anticipo, sigue como pagado; para regresarlo se registra un reembolso).
-  const saldo = renta.estado === "CANCELADA" ? 0 : total - pagadoConfirmado;
+  // Una cancelada no genera cobro: lo que no se haya pagado ya no se debe (si
+  // hubo anticipo, sigue como pagado; para regresarlo se registra un reembolso).
+  // Una cotizada tampoco: es un precio ofrecido, no una venta, y si contara
+  // como saldo aparecería en "Con saldo" y en los avisos de cobranza.
+  const saldo = ESTADOS_SIN_COBRO.includes(renta.estado as EstadoRentaStr)
+    ? 0
+    : total - pagadoConfirmado;
 
   return {
     dias,
@@ -171,7 +175,9 @@ export const ESTADO_RENTA_META: Record<
 // Chip de estado coloreado (fondo suave + texto del color) para las listas y el
 // detalle, estilo iOS del diseño.
 export const ESTADO_CHIP: Record<string, string> = {
-  COTIZADA: "bg-muted text-muted-foreground",
+  // Color propio: con el gris de CONCLUIDA no se distinguía una cotización
+  // pendiente de una renta ya terminada.
+  COTIZADA: "bg-chip-cielo text-chip-cielo-fg",
   CONFIRMADA: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
   EN_RUTA: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300",
   ENTREGADA: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300",
@@ -218,9 +224,21 @@ export const UNIDADES_BLOQUEADAS: EstadoRentaStr[] = [
   "CANCELADA",
 ];
 
-// Estados cerrados: la renta ya no aparta inventario (ver ESTADOS_ACTIVOS en
-// disponibilidad.ts), así que mover sus fechas no puede chocar con nadie.
+// Estados cerrados: la renta ya terminó (o no ocurrió). Distinto de "no aparta
+// inventario": una COTIZADA tampoco aparta, pero sigue viva.
 export const ESTADOS_CERRADOS: EstadoRentaStr[] = ["RECOGIDA", "CONCLUIDA", "CANCELADA"];
+
+// ¿El estado aparta unidades? Es la misma regla de ESTADOS_ACTIVOS
+// (disponibilidad.ts); vive aquí para que la usen las validaciones sin cargar
+// el módulo de queries. Una cotización no aparta nada: por eso se puede cotizar
+// equipo ya ocupado, y por eso confirmarla sí tiene que revalidar.
+export function apartaInventario(estado: string): boolean {
+  return estado === "CONFIRMADA" || estado === "EN_RUTA" || estado === "ENTREGADA";
+}
+
+// Estados que no generan cuenta por cobrar: una cotización que nadie aceptó no
+// es dinero que se deba, y una cancelada ya no se cobra.
+export const ESTADOS_SIN_COBRO: EstadoRentaStr[] = ["COTIZADA", "CANCELADA"];
 
 // Estados que cuentan como "ya atendida" para las secciones del dashboard:
 // una entrega de hoy ya hecha (o recolección) sigue visible, marcada como lista.

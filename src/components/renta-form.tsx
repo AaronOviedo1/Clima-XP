@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, FileImage } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import {
   crearRenta,
@@ -36,6 +36,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { urlCotizacionSeleccion } from "@/lib/cotizacion-url";
+import { CotizacionCompartir } from "@/components/cotizacion-compartir";
 import { ClienteRapidoDialog } from "@/components/cliente-rapido-dialog";
 import {
   ClienteCombobox,
@@ -136,6 +138,7 @@ export function RentaForm({
   clientePreseleccionado,
   edicion,
   enModal = false,
+  modo = "renta",
 }: {
   clientes: ClienteOpcion[];
   unidadesIniciales: UnidadOpcion[];
@@ -143,7 +146,11 @@ export function RentaForm({
   clientePreseleccionado?: string;
   edicion?: RentaEdicion;
   enModal?: boolean;
+  // En modo cotización el mismo formulario da un precio: no aparta equipo, no
+  // pide dirección ni anticipo, y se puede ver la hoja sin guardar nada.
+  modo?: "renta" | "cotizacion";
 }) {
+  const cotizando = modo === "cotizacion" && !edicion;
   const router = useRouter();
   const ini = edicion?.iniciales;
   const [pendingSubmit, startSubmit] = useTransition();
@@ -153,7 +160,9 @@ export function RentaForm({
   const [clienteId, setClienteId] = useState(
     clientePreseleccionado ?? ini?.clienteId ?? "",
   );
-  const [estado, setEstado] = useState<"COTIZADA" | "CONFIRMADA">("CONFIRMADA");
+  const [estado, setEstado] = useState<"COTIZADA" | "CONFIRMADA">(
+    modo === "cotizacion" ? "COTIZADA" : "CONFIRMADA",
+  );
   const [fechaInicio, setFechaInicio] = useState(fechasIniciales.inicio);
   const [fechaFin, setFechaFin] = useState(fechasIniciales.fin);
   const [calAbierto, setCalAbierto] = useState(false);
@@ -205,6 +214,8 @@ export function RentaForm({
 
   const [notas, setNotas] = useState(ini?.notas ?? "");
   const [error, setError] = useState<string | null>(null);
+  // Hoja de cotización sin guardar: se arma con lo que está en pantalla.
+  const [urlCotizacion, setUrlCotizacion] = useState<string | null>(null);
 
   // Recargar unidades disponibles al cambiar las fechas.
   function recargarUnidades(inicio: string, fin: string) {
@@ -408,11 +419,37 @@ export function RentaForm({
     return [...map.entries()];
   }, [unidades]);
 
+  // Hoja de cotización con lo que hay en pantalla, sin tocar la base. Los
+  // precios los pone el servidor a partir de las unidades (ver /api/cotizacion).
+  function verCotizacion() {
+    setError(null);
+    if (sel.size === 0) return setError("Selecciona al menos una unidad.");
+    if (descuentoMonto > 0 && !descuentoNota.trim())
+      return setError("El descuento requiere una nota con el motivo.");
+
+    setUrlCotizacion(
+      urlCotizacionSeleccion({
+        unidadIds: [...sel],
+        fechaInicio,
+        fechaFin,
+        costoDomicilio,
+        distanciaKm: distanciaKm ? parseFloat(distanciaKm) : null,
+        descuentoMonto,
+        cliente: clientes.find((c) => c.id === clienteId)?.nombre ?? null,
+      }),
+    );
+  }
+
   function onSubmit() {
     setError(null);
-    if (!clienteId) return setError("Selecciona un cliente.");
+    if (!clienteId)
+      return setError(
+        cotizando ? "Para guardar la cotización elige un cliente." : "Selecciona un cliente.",
+      );
     if (sel.size === 0) return setError("Selecciona al menos una unidad.");
-    if (!direccion.trim()) return setError("La dirección es obligatoria.");
+    // Al cotizar la dirección puede no existir todavía (cotización telefónica);
+    // se exige al confirmar la renta.
+    if (!cotizando && !direccion.trim()) return setError("La dirección es obligatoria.");
     if (descuentoMonto > 0 && !descuentoNota.trim())
       return setError("El descuento requiere una nota con el motivo.");
 
@@ -456,7 +493,11 @@ export function RentaForm({
         setError(res.error);
         toast.error(res.error);
       } else {
-        toast.success(edicion ? "Cambios guardados" : "Renta creada");
+        // Un aviso no impide guardar (p. ej. cotizar equipo ya apartado).
+        if (res.aviso) toast.warning(res.aviso);
+        toast.success(
+          edicion ? "Cambios guardados" : cotizando ? "Cotización guardada" : "Renta creada",
+        );
         if (enModal) {
           // En pop-up: cerrarlo y volver a lo que estaba detrás (el detalle al
           // editar, la lista al dar de alta), ya actualizado.
@@ -469,9 +510,16 @@ export function RentaForm({
 
   return (
     <div className={cn("space-y-5", !enModal && "pb-44 xl:pb-28")}>
+      {cotizando && (
+        <p className="rounded-xl bg-chip-cielo px-3 py-2 text-sm text-chip-cielo-fg">
+          La cotización no aparta equipo. Puedes ver la hoja sin guardar nada, o
+          guardarla para convertirla en renta cuando el cliente diga que sí.
+        </p>
+      )}
+
       {/* Cliente */}
       <section className="space-y-2">
-        <Label>Cliente</Label>
+        <Label>Cliente{cotizando && " (solo para guardarla)"}</Label>
         <div className="flex gap-2">
           <ClienteCombobox
             clientes={clientes}
@@ -654,7 +702,7 @@ export function RentaForm({
           </datalist>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dir">Dirección</Label>
+          <Label htmlFor="dir">Dirección{cotizando && " (opcional)"}</Label>
           <Textarea
             id="dir"
             value={direccion}
@@ -806,8 +854,8 @@ export function RentaForm({
         </label>
       </section>
 
-      {/* Anticipo: solo al crear (los pagos se manejan en el detalle) */}
-      {!edicion && (
+      {/* Anticipo: solo al crear una renta (una cotización no se cobra) */}
+      {!edicion && !cotizando && (
         <>
           <Separator />
           <section className="space-y-2">
@@ -848,8 +896,9 @@ export function RentaForm({
         />
       </div>
 
-      {/* Estado inicial: solo al crear (en edición el estado se maneja en el detalle) */}
-      {!edicion && (
+      {/* Estado inicial: solo al crear una renta (en edición el estado se maneja
+          en el detalle, y al cotizar ya se sabe que queda como cotización) */}
+      {!edicion && !cotizando && (
         <section className="space-y-2">
           <Label>Estado inicial</Label>
           <Select value={estado} onValueChange={(v) => setEstado(v as never)}>
@@ -889,15 +938,41 @@ export function RentaForm({
               <div className="text-xl font-bold">{pesos(calc.total)}</div>
             </CardContent>
           </Card>
+          {/* Al cotizar, "Ver" enseña la hoja sin guardar nada: es lo que se usa
+              con el que solo pregunta precio por teléfono. */}
+          {cotizando && (
+            <Button
+              variant="outline"
+              className="h-12 px-4 text-base"
+              onClick={verCotizacion}
+              disabled={pendingSubmit}
+            >
+              <FileImage className="size-4" /> Ver
+            </Button>
+          )}
           <Button
             className="h-12 px-6 text-base"
             onClick={onSubmit}
             disabled={pendingSubmit}
           >
-            {pendingSubmit ? "Guardando…" : edicion ? "Guardar cambios" : "Crear renta"}
+            {pendingSubmit
+              ? "Guardando…"
+              : edicion
+                ? "Guardar cambios"
+                : cotizando
+                  ? "Guardar"
+                  : "Crear renta"}
           </Button>
         </div>
       </div>
+
+      {urlCotizacion && (
+        <CotizacionCompartir
+          url={urlCotizacion}
+          abierto
+          onOpenChange={(v) => !v && setUrlCotizacion(null)}
+        />
+      )}
     </div>
   );
 }

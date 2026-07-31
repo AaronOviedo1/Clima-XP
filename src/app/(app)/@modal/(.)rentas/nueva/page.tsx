@@ -15,14 +15,18 @@ export const dynamic = "force-dynamic";
 export default async function NuevaRentaModalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cliente?: string }>;
+  searchParams: Promise<{ cliente?: string; modo?: string }>;
 }) {
-  const { cliente } = await searchParams;
+  const { cliente, modo } = await searchParams;
 
   return (
     <RentaNuevaModal>
       <Suspense fallback={<FormSkeleton />}>
-        <RentaNueva clientePreseleccionado={cliente} enModal />
+        <RentaNueva
+          clientePreseleccionado={cliente}
+          enModal
+          modo={modo === "cotizacion" ? "cotizacion" : "renta"}
+        />
       </Suspense>
     </RentaNuevaModal>
   );

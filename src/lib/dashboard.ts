@@ -121,7 +121,9 @@ export async function datosDelDia(opts: {
       relationLoadStrategy: "join",
       where: {
         fechaInicio: { equals: manana },
-        estado: { in: ["COTIZADA", "CONFIRMADA"] },
+        // Solo lo que de verdad sale mañana: una cotización que nadie confirmó
+        // no es una entrega, y aparecía en el resumen como si lo fuera.
+        estado: { in: ["CONFIRMADA"] },
       },
       select: rentaTarjetaSelect,
       orderBy: { createdAt: "asc" },

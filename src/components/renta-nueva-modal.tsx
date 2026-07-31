@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 /**
@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 export function RentaNuevaModal({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const cotizando = useSearchParams().get("modo") === "cotizacion";
 
   if (pathname !== "/rentas/nueva") return null;
 
@@ -24,7 +25,7 @@ export function RentaNuevaModal({ children }: { children: React.ReactNode }) {
         // pb-0: la barra de total del formulario se pega al borde inferior.
         className="no-scrollbar max-h-[85dvh] overflow-y-auto overflow-x-hidden pb-0 sm:max-w-lg"
       >
-        <DialogTitle>Nueva renta</DialogTitle>
+        <DialogTitle>{cotizando ? "Nueva cotización" : "Nueva renta"}</DialogTitle>
         {children}
       </DialogContent>
     </Dialog>
