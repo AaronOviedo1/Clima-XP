@@ -163,7 +163,45 @@ async function sugerenciasDePlaces(texto: string): Promise<SugerenciaDireccion[]
   }
 }
 
-// Plan B: el geocoder devuelve varios resultados para un texto parcial. No
+// Places "clásica" (maps.googleapis.com). Es la que funciona hoy con la llave
+// del negocio: la versión New responde 403 aunque aparezca seleccionada en las
+// restricciones. Completa igual de bien desde las primeras letras.
+async function sugerenciasDePlacesLegacy(texto: string): Promise<SugerenciaDireccion[] | null> {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return null;
+
+  const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
+  url.searchParams.set("input", texto);
+  url.searchParams.set("language", "es");
+  url.searchParams.set("components", "country:mx");
+  // Sesgo a Hermosillo: sin esto sugiere calles de todo el país.
+  url.searchParams.set("location", "29.0729,-110.9559");
+  url.searchParams.set("radius", "40000");
+  url.searchParams.set("key", key);
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+    if (data.status === "ZERO_RESULTS") return [];
+    if (data.status !== "OK") return null; // REQUEST_DENIED → sin permiso
+    return (data.predictions as {
+      place_id: string;
+      structured_formatting?: { main_text?: string; secondary_text?: string };
+      description: string;
+    }[])
+      .slice(0, 5)
+      .map((p) => ({
+        descripcion: p.structured_formatting?.main_text ?? p.description,
+        detalle: p.structured_formatting?.secondary_text ?? null,
+        coords: null,
+        placeId: p.place_id,
+      }));
+  } catch {
+    return null;
+  }
+}
+
+// Plan C: el geocoder devuelve varios resultados para un texto parcial. No
 // completa como Places (hay que escribir casi toda la calle), pero ya está
 // habilitado y trae las coordenadas de una vez.
 async function sugerenciasDeGeocoding(texto: string): Promise<SugerenciaDireccion[]> {
@@ -200,23 +238,46 @@ async function sugerenciasDeGeocoding(texto: string): Promise<SugerenciaDireccio
   }
 }
 
+// Se intenta la mejor primero y se cae a la siguiente cuando la llave no tiene
+// permiso: Places (New) → Places clásica → geocoder. Así la app funciona con lo
+// que esté habilitado y mejora sola si se habilita más.
 export async function sugerenciasDeDireccion(texto: string): Promise<SugerenciaDireccion[]> {
-  return (await sugerenciasDePlaces(texto)) ?? (await sugerenciasDeGeocoding(texto));
+  return (
+    (await sugerenciasDePlaces(texto)) ??
+    (await sugerenciasDePlacesLegacy(texto)) ??
+    (await sugerenciasDeGeocoding(texto))
+  );
 }
 
-// Coordenadas de una sugerencia de Places (las de Geocoding ya vienen).
+// Coordenadas de una sugerencia de Places (las del geocoder ya vienen). Mismo
+// escalonado que las sugerencias: New primero, clásica después.
 export async function coordenadasDePlace(placeId: string): Promise<Coordenadas | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return null;
+
   try {
     const res = await fetch(
       `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=es`,
       { headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": "location" }, cache: "no-store" },
     );
-    if (!res.ok) return null;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.location) return { lat: data.location.latitude, lng: data.location.longitude };
+    }
+  } catch {
+    // sigue con la clásica
+  }
+
+  const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+  url.searchParams.set("place_id", placeId);
+  url.searchParams.set("fields", "geometry");
+  url.searchParams.set("language", "es");
+  url.searchParams.set("key", key);
+  try {
+    const res = await fetch(url, { cache: "no-store" });
     const data = await res.json();
-    const loc = data.location;
-    return loc ? { lat: loc.latitude, lng: loc.longitude } : null;
+    const loc = data.result?.geometry?.location;
+    return loc ? { lat: loc.lat, lng: loc.lng } : null;
   } catch {
     return null;
   }
