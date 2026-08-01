@@ -2,7 +2,6 @@
 
 import { MapPin, Navigation, Ruler, Truck } from "lucide-react";
 import type { RentaFormApi } from "@/hooks/use-renta-form";
-import { esLinkCortoMaps, esUrl, parseCoordenadas } from "@/lib/coordenadas";
 import { linkMapsPunto } from "@/lib/maps";
 import { pesos } from "@/lib/dinero";
 import { cn } from "@/lib/utils";
@@ -11,8 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Colapsable, FilaInfo } from "@/components/renta/bloques";
+import { CampoDireccion } from "@/components/renta/campo-direccion";
 
 // Sugerencias de tipo de lugar. Antes era un <datalist>, que iOS Safari ignora:
 // las 9 opciones eran invisibles justo en el teléfono donde se usa la app.
@@ -28,84 +27,13 @@ const LUGARES_FRECUENTES = [
   "Taller",
 ];
 
-// ¿Lo pegado trae un link de Maps o coordenadas? Decide si vale la pena ubicar
-// en el acto o esperar a que salgan del campo.
-function pareceUbicacion(texto: string): boolean {
-  return esUrl(texto) || esLinkCortoMaps(texto) || parseCoordenadas(texto) != null;
-}
-
-// Valor que tendría el campo después de pegar, para ubicar sin esperar al
-// re-render (el state todavía no refleja el pegado).
-function valorAlPegar(
-  e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-): string | null {
-  const pegado = e.clipboardData.getData("text");
-  if (!pegado.trim()) return null;
-  const el = e.currentTarget;
-  const desde = el.selectionStart ?? el.value.length;
-  const hasta = el.selectionEnd ?? el.value.length;
-  e.preventDefault();
-  return el.value.slice(0, desde) + pegado + el.value.slice(hasta);
-}
-
 /** Paso 3: a dónde va el equipo y cuánto cuesta llevarlo. */
 export function PasoDireccion({ form }: { form: RentaFormApi }) {
   const cotizando = form.estado === "COTIZADA" && !form.edicion;
 
   return (
     <div className="space-y-4">
-      <section className="space-y-2">
-        <Label htmlFor="dir">Dirección{cotizando && " (opcional al cotizar)"}</Label>
-        <Textarea
-          id="dir"
-          value={form.direccion}
-          rows={3}
-          autoCapitalize="sentences"
-          placeholder="Calle, colonia, referencias… (o pega el link de Maps)"
-          onChange={(e) => form.setDireccion(e.target.value)}
-          onBlur={form.onSalirDeUbicacion}
-          onPaste={(e) => {
-            const v = valorAlPegar(e);
-            if (v == null) return;
-            form.setDireccion(v);
-            // Solo si lo pegado trae link/coords: el texto suelto se resuelve al
-            // salir del campo, no en cada pegada.
-            if (pareceUbicacion(v)) form.ubicarSiCambio(form.ubicacionTexto, v);
-          }}
-        />
-      </section>
-
-      <section className="space-y-2">
-        <Label htmlFor="ubic">Link de Maps o coordenadas</Label>
-        <div className="flex gap-2">
-          <Input
-            id="ubic"
-            value={form.ubicacionTexto}
-            placeholder="maps.app.goo.gl/… o 29.10, -111.00"
-            className="h-11 flex-1"
-            onChange={(e) => form.setUbicacionTexto(e.target.value)}
-            onBlur={form.onSalirDeUbicacion}
-            onPaste={(e) => {
-              const v = valorAlPegar(e);
-              if (v == null) return;
-              form.setUbicacionTexto(v);
-              form.ubicarSiCambio(v, form.direccion);
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 shrink-0"
-            disabled={form.ubicando}
-            onClick={form.onUbicar}
-          >
-            {form.ubicando ? "…" : "Ubicar"}
-          </Button>
-        </div>
-        <p className="text-[12.5px] text-muted-foreground">
-          Los km y el costo se calculan solos al pegar el link o al salir de la dirección.
-        </p>
-      </section>
+      <CampoDireccion form={form} opcional={cotizando} />
 
       {/* Resultado del cálculo: antes era un párrafo corrido de 3–4 líneas. */}
       {(form.ubicacionMsg || form.distanciaKm || form.costoDomicilio > 0) && (

@@ -34,7 +34,11 @@ import {
   geocodificarDireccion,
   distanciaKmDesde,
   mapsHabilitado,
+  sugerenciasDeDireccion,
+  coordenadasDePlace,
+  localidadDeCoords,
   type Localidad,
+  type SugerenciaDireccion,
 } from "@/lib/google-maps";
 import { motivoFueraDeCobertura } from "@/lib/cobertura";
 import { obtenerBodega } from "@/lib/configuracion";
@@ -75,6 +79,21 @@ export async function resolverUbicacion(texto: string): Promise<ResultadoUbicaci
   }
 
   return { coords: null, linkMaps };
+}
+
+// Sugerencias mientras se escribe la dirección. Con "Places API (New)"
+// habilitada en la llave completa como Google Maps; si no, cae al geocoder
+// (hay que escribir casi toda la calle, pero funciona sin tocar nada).
+export async function sugerenciasDireccion(texto: string): Promise<SugerenciaDireccion[]> {
+  const q = texto.trim();
+  // Con menos de 4 letras las sugerencias son ruido y se gastan llamadas.
+  if (q.length < 4 || !mapsHabilitado()) return [];
+  return sugerenciasDeDireccion(q);
+}
+
+// Coordenadas de una sugerencia elegida (solo las de Places las necesitan).
+export async function coordenadasDeSugerencia(placeId: string): Promise<Coordenadas | null> {
+  return coordenadasDePlace(placeId);
 }
 
 // Flujo completo de ubicación + domicilio (Fase 4):
@@ -133,6 +152,16 @@ export async function ubicarCompleto(entrada: {
 
   if (!coords && !ubicacion && !direccion) {
     avisos.push("Escribe la dirección o pega un link/coordenadas primero.");
+  }
+
+  // Link o coordenadas pegadas: se pregunta a qué dirección corresponden, para
+  // que el campo quede con algo legible ("Blvd. Morelos 340") y no con la URL.
+  if (coords && !direccionFormateada && mapsHabilitado()) {
+    const r = await localidadDeCoords(coords);
+    if (r.ok) {
+      direccionFormateada = r.direccionFormateada;
+      localidad = r.localidad;
+    }
   }
 
   let km: number | null = null;

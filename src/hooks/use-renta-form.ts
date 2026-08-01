@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
+  coordenadasDeSugerencia,
   crearRenta,
   editarRenta,
   sugerirDomicilio,
@@ -14,6 +15,7 @@ import {
   type UbicacionCompleta,
   type UnidadOpcion,
 } from "@/lib/actions/rentas";
+import type { SugerenciaDireccion } from "@/lib/google-maps";
 import { calcularRenta } from "@/lib/renta-calculo";
 import { diasDeRenta, fechaDesdeInput } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
@@ -273,6 +275,27 @@ export function useRentaForm({
     };
   }
 
+  // El usuario eligió una sugerencia de Google: se guarda como dirección y se
+  // ubica con sus coordenadas, sin volver a geocodificar el texto.
+  function elegirSugerencia(s: SugerenciaDireccion) {
+    const texto = [s.descripcion, s.detalle].filter(Boolean).join(", ");
+    setDireccion(texto);
+    setUbicacionMsg(null);
+
+    startUbicar(async () => {
+      const coords = s.coords ?? (s.placeId ? await coordenadasDeSugerencia(s.placeId) : null);
+      // Con coordenadas se ubica directo; si no llegaran, queda el texto y el
+      // geocoder normal lo resuelve al avanzar de paso.
+      const entrada = coords ? `${coords.lat}, ${coords.lng}` : "";
+      setUbicadoPara(claveUbicacion(entrada, texto));
+      const res = await ubicarCompleto({ ubicacion: entrada, direccion: texto });
+      aplicarResultadoUbicacion(res);
+      setUbicacionMsg(
+        res.km != null ? `${res.km} km (${res.minutos} min) desde la bodega` : null,
+      );
+    });
+  }
+
   // Recibe los valores por parámetro (no del state): al pegar hay que ubicar con
   // el texto recién pegado, que todavía no pasó por el re-render.
   function ejecutarUbicar(ubicacion: string, dir: string) {
@@ -295,6 +318,30 @@ export function useRentaForm({
         partes.join(" · ") ||
           "No se detectaron coordenadas (se guardará el link/texto tal cual).",
       );
+    });
+  }
+
+  // Se pegó un link de Maps o coordenadas en el campo de dirección (ya no hay
+  // campo aparte para eso). Se resuelve como ubicación y, cuando Google
+  // devuelve a qué dirección corresponde, esa reemplaza a la URL: el campo
+  // queda con algo que el repartidor pueda leer.
+  function pegarUbicacion(texto: string) {
+    setDireccion(texto);
+    setUbicacionTexto(texto);
+    setUbicacionMsg(null);
+    setUbicadoPara(claveUbicacion(texto, ""));
+
+    startUbicar(async () => {
+      const res = await ubicarCompleto({ ubicacion: texto, direccion: "" });
+      aplicarResultadoUbicacion(res);
+      if (res.direccionFormateada) {
+        setDireccion(res.direccionFormateada);
+        setUbicadoPara(claveUbicacion(texto, res.direccionFormateada));
+      }
+      const partes: string[] = [];
+      if (res.km != null) partes.push(`${res.km} km (${res.minutos} min) desde la bodega`);
+      partes.push(...res.avisos);
+      setUbicacionMsg(partes.join(" · ") || null);
     });
   }
 
@@ -534,6 +581,8 @@ export function useRentaForm({
     ubicarSiCambio,
     onSalirDeUbicacion,
     resolverUbicacionPendiente,
+    elegirSugerencia,
+    pegarUbicacion,
     fueraDeCobertura,
     // domicilio
     distanciaKm,
