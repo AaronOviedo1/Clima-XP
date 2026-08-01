@@ -665,6 +665,86 @@ export async function marcarEntregada(
   }
 }
 
+// Accesorios que salieron con esta renta (los que se capturaron al entregar),
+// para revisarlos uno por uno al recoger.
+export async function accesoriosDeRenta(rentaId: string): Promise<AccesorioOpcion[]> {
+  const filas = await prisma.rentaAccesorio.findMany({
+    where: { rentaId },
+    select: {
+      accesorio: { select: { id: true, descripcion: true, tipo: true, codigo: true } },
+    },
+    orderBy: { accesorio: { tipo: "asc" } },
+  });
+  return filas.map((f) => f.accesorio);
+}
+
+// Marca la renta como RECOGIDA revisando los accesorios que se habían dejado.
+// Lo que no regresó no traba la renta (el equipo se libera igual), pero queda
+// anotado en la renta: si no, se pierde el rastro de la manguera que se quedó
+// en casa del cliente.
+export async function marcarRecogida(
+  rentaId: string,
+  accesoriosNoRecogidos: string[] = [],
+): Promise<RentaActionResult> {
+  try {
+    let faltantes: string[] = [];
+
+    await prisma.$transaction(async (tx) => {
+      const renta = await tx.renta.findUnique({
+        where: { id: rentaId },
+        include: { unidades: true, accesorios: { include: { accesorio: true } } },
+      });
+      if (!renta) throw new Error("Renta no encontrada.");
+      if (!TRANSICIONES[renta.estado].includes("RECOGIDA")) {
+        throw new Error(`No se puede pasar de ${renta.estado} a RECOGIDA.`);
+      }
+
+      // Solo cuentan los accesorios de esta renta (lo demás se ignora).
+      const deLaRenta = new Map(renta.accesorios.map((ra) => [ra.accesorioId, ra.accesorio]));
+      faltantes = accesoriosNoRecogidos
+        .map((id) => deLaRenta.get(id))
+        .filter((a) => a != null)
+        .map((a) => (a.codigo ? `${a.descripcion} (${a.codigo})` : a.descripcion));
+
+      const unidadIds = renta.unidades.map((u) => u.unidadId);
+      if (unidadIds.length) {
+        await tx.unidad.updateMany({
+          where: { id: { in: unidadIds } },
+          data: { estado: "DISPONIBLE" },
+        });
+      }
+
+      const nota = faltantes.length
+        ? `Quedó sin recoger: ${faltantes.join(", ")}`
+        : null;
+
+      await tx.renta.update({
+        where: { id: rentaId },
+        data: {
+          estado: "RECOGIDA",
+          ...(nota ? { notas: [renta.notas, nota].filter(Boolean).join(" · ") } : {}),
+        },
+      });
+    });
+
+    revalidatePath("/rentas");
+    revalidatePath(`/rentas/${rentaId}`);
+    revalidatePath("/");
+    revalidatePath("/ruta");
+
+    const actor = await actorActual();
+    avisar(() => avisarEntregaMarcada(rentaId, "RECOGIDA", actor));
+
+    return {
+      ok: true,
+      id: rentaId,
+      aviso: faltantes.length ? `Quedó sin recoger: ${faltantes.join(", ")}` : undefined,
+    };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo marcar como recogida." };
+  }
+}
+
 // Corrección de estado (solo admin): salta el flujo normal (TRANSICIONES) para
 // arreglar errores de captura, p. ej. una renta marcada CONCLUIDA que en
 // realidad sigue CONFIRMADA. Si el nuevo estado vuelve a ocupar inventario

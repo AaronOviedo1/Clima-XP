@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, MessageCircle, Truck, PackageCheck, PackageOpen, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
-import { cambiarEstadoRenta, marcarEntregada } from "@/lib/actions/rentas";
+import { cambiarEstadoRenta, marcarEntregada, marcarRecogida } from "@/lib/actions/rentas";
 import type { TarjetaRenta } from "@/lib/dashboard";
 import { ENTREGA_HECHA, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { DialogoEntrega } from "@/components/dialogo-entrega";
+import { DialogoRecoleccion } from "@/components/dialogo-recoleccion";
 import { cn } from "@/lib/utils";
 
 export function DashboardCard({
@@ -39,6 +40,7 @@ export function DashboardCard({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [dialogEntrega, setDialogEntrega] = useState(false);
+  const [dialogRecoleccion, setDialogRecoleccion] = useState(false);
   // El aviso se congela al abrir el diálogo: lo que se ve es lo que se manda.
   const [avisoRuta, setAvisoRuta] = useState<string | null>(null);
 
@@ -116,6 +118,24 @@ export function DashboardCard({
       } else {
         toast.success("Renta entregada");
         setDialogEntrega(false);
+        router.refresh();
+      }
+    });
+  }
+
+  // Recoger revisa los accesorios que salieron con la renta: lo que no regresó
+  // queda anotado en ella, pero no impide cerrarla.
+  function recoger(noRecogidos: string[]) {
+    setError(null);
+    start(async () => {
+      const res = await marcarRecogida(r.id, noRecogidos);
+      if ("error" in res) {
+        setError(res.error);
+        toast.error(res.error);
+      } else {
+        if (res.aviso) toast.warning(res.aviso);
+        toast.success("Recolección hecha");
+        setDialogRecoleccion(false);
         router.refresh();
       }
     });
@@ -224,7 +244,11 @@ export function DashboardCard({
             <Button
               className="h-11 flex-1"
               disabled={pending}
-              onClick={() => accion("RECOGIDA")}
+              // Con accesorios en la calle se revisan uno por uno antes de
+              // cerrar; sin ellos no hay nada que preguntar.
+              onClick={() =>
+                r.accesoriosEntregados > 0 ? setDialogRecoleccion(true) : recoger([])
+              }
             >
               <PackageOpen className="size-4" /> Recogido
             </Button>
@@ -239,6 +263,14 @@ export function DashboardCard({
         abierto={dialogEntrega}
         onOpenChange={setDialogEntrega}
         onConfirmar={confirmarEntrega}
+        pending={pending}
+      />
+
+      <DialogoRecoleccion
+        rentaId={r.id}
+        abierto={dialogRecoleccion}
+        onOpenChange={setDialogRecoleccion}
+        onConfirmar={recoger}
         pending={pending}
       />
 

@@ -219,6 +219,7 @@ export function RentaDetalle({
         rentaId={renta.id}
         estado={renta.estado as EstadoRentaStr}
         tiposEquipo={tiposEquipo}
+        accesoriosEntregados={renta.accesorios.length}
       />
 
       {/* Tarjeta de info: dirección, periodo, equipo */}
@@ -291,6 +292,10 @@ export function RentaDetalle({
           {renta.accesorios.length > 0 && (
             <>
               <Separator className="my-2" />
+              {/* Lo que salió con el equipo: es lo que se revisa al recoger. */}
+              <p className="text-xs font-semibold text-tenue uppercase">
+                Accesorios entregados
+              </p>
               {renta.accesorios.map((ra) => (
                 <div key={ra.id} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{ra.accesorio.descripcion}</span>

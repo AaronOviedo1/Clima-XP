@@ -25,6 +25,9 @@ export type TarjetaRenta = {
   // Tipos de equipo de la renta (AEROCOOLER/CALENTON): definen qué accesorios
   // ofrecer al marcar la entrega desde la tarjeta.
   tiposEquipo: string[];
+  // Cuántos accesorios salieron con la renta: con cero no hay nada que revisar
+  // al recoger y el botón "Recogido" sigue siendo de un tap.
+  accesoriosEntregados: number;
   total: number;
   saldo: number;
 };
@@ -47,6 +50,7 @@ export function tarjetaDesdeRenta(
     ventanaEntrega: renta.ventanaEntrega,
     codigos: renta.unidades.map((u) => u.unidad.codigo),
     tiposEquipo: [...new Set(renta.unidades.map((u) => u.unidad.modelo.tipo))],
+    accesoriosEntregados: renta.accesorios.length,
     total: t?.total ?? 0,
     saldo: t?.saldo ?? 0,
   };
