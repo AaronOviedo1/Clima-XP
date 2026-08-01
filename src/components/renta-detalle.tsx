@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   ChevronLeft,
-  ChevronDown,
   MapPin,
   MessageCircle,
   Pencil,
@@ -30,6 +29,7 @@ import { PagoForm } from "@/components/pago-form";
 import { PagoEliminarBoton } from "@/components/pago-eliminar-boton";
 import { RentaEliminarBoton } from "@/components/renta-eliminar-boton";
 import { CotizacionBoton } from "@/components/cotizacion-boton";
+import { Colapsable, Fila, FilaInfo, Tile } from "@/components/renta/bloques";
 
 const METODO_LABEL: Record<string, string> = {
   EFECTIVO: "Efectivo",
@@ -37,65 +37,6 @@ const METODO_LABEL: Record<string, string> = {
   LINK_MERCADO_PAGO: "Mercado Pago",
   OTRO: "Otro",
 };
-
-function Fila({ label, value, fuerte }: { label: string; value: string; fuerte?: boolean }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={fuerte ? "font-semibold" : ""}>{value}</span>
-    </div>
-  );
-}
-
-// Fila de la tarjeta de info (ícono + etiqueta + valor).
-function FilaInfo({
-  icono,
-  label,
-  value,
-  borde = true,
-}: {
-  icono: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  borde?: boolean;
-}) {
-  return (
-    <div className={"flex items-center gap-3 px-4 py-3.5" + (borde ? " border-b" : "")}>
-      <span className="shrink-0 text-muted-foreground">{icono}</span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
-        <div className="mt-0.5 text-[14.5px] font-semibold break-words">{value}</div>
-      </div>
-    </div>
-  );
-}
-
-// Tarjeta colapsable (cerrada por defecto): el título es el <summary>.
-function Colapsable({ titulo, children }: { titulo: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3.5">
-          <span className="text-base font-semibold">{titulo}</span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="border-t px-4 pt-3 pb-4">{children}</div>
-      </details>
-    </Card>
-  );
-}
-
-// Tile de importe (Total / Pagado / Saldo) — estilo iOS.
-function Tile({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="flex-1 rounded-2xl bg-card p-3 shadow-sm">
-      <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
-      <div className={`mt-0.5 text-[19px] font-extrabold tracking-tight tabular-nums ${color ?? ""}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
 
 export function RentaDetalle({
   renta,

@@ -74,3 +74,12 @@ export const RUTAS_MAS = [
 export function tabsParaRol(esAdmin: boolean): NavItem[] {
   return TABS_MOVIL.filter((i) => esAdmin || !i.soloAdmin);
 }
+
+// Pantallas que son una tarea de principio a fin (dar de alta o editar una
+// renta): ahí la barra de pestañas estorba —invita a irse a media captura— y
+// además obliga a calcular a mano cuánto mide para que la barra de acción del
+// formulario no la tape. Se esconde, como hace iOS en sus flujos.
+// El match es exacto a propósito: "/rentas" a secas escondería el nav en la lista.
+export function ocultarTabBar(pathname: string): boolean {
+  return pathname === "/rentas/nueva" || /^\/rentas\/[^/]+\/editar$/.test(pathname);
+}

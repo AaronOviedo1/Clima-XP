@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { RUTAS_MAS, tabsParaRol, type NavItem } from "@/lib/nav";
+import { RUTAS_MAS, ocultarTabBar, tabsParaRol, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 function activo(item: NavItem, pathname: string) {
@@ -18,6 +18,9 @@ function activo(item: NavItem, pathname: string) {
 export function BottomNav({ esAdmin }: { esAdmin: boolean }) {
   const pathname = usePathname();
   const tabs = tabsParaRol(esAdmin);
+
+  // En el alta y la edición de renta no hay pestañas: son flujos de una tarea.
+  if (ocultarTabBar(pathname)) return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/80 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+10px)] backdrop-blur-xl">
