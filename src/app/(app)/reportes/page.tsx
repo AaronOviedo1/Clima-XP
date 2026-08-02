@@ -8,9 +8,18 @@ import {
   Wallet,
   Users,
 } from "lucide-react";
-import { generarReportes, type PeriodoReporte, type Serie } from "@/lib/reportes";
+import {
+  etiquetaSemanaCorta,
+  generarReportes,
+  hrefPeriodo,
+  nombreMes,
+  periodoDesdeParams,
+  type PeriodoReporte,
+  type Serie,
+} from "@/lib/reportes";
 import { pesos } from "@/lib/dinero";
 import { Barras } from "@/components/barras";
+import { ChipsPeriodo, type ItemPeriodo } from "@/components/reportes-chips";
 import { AccionesSeccion } from "@/components/desktop/seccion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -121,10 +130,9 @@ function BarraProg({
 export default async function ReportesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anio?: string }>;
+  searchParams: Promise<{ anio?: string; mes?: string; semana?: string }>;
 }) {
-  const { anio } = await searchParams;
-  const periodo: PeriodoReporte = anio && /^\d{4}$/.test(anio) ? Number(anio) : "todos";
+  const periodo: PeriodoReporte = periodoDesdeParams(await searchParams);
 
   const rep = await generarReportes(periodo);
 
@@ -142,7 +150,6 @@ export default async function ReportesPage({
   ];
 
   // --- Derivados para la vista móvil ---
-  const periodoLabel = periodo === "todos" ? "Histórico" : String(periodo);
   const maxBarra = Math.max(...rep.ingresosPorPeriodo.map((x) => x.valor), 1);
   const pico = rep.ingresosPorPeriodo.reduce(
     (best, x) => (x.valor > best.valor ? x : best),
@@ -158,43 +165,78 @@ export default async function ReportesPage({
 
   const anios = [...rep.aniosDisponibles].sort((a, b) => a - b);
 
+  // Los tres niveles del filtro. El de meses solo existe con un año elegido, y
+  // el de semanas con un mes: cada fila abre la siguiente.
+  const filaMeses: ItemPeriodo[] =
+    periodo.anio == null
+      ? []
+      : [
+          {
+            href: hrefPeriodo({ anio: periodo.anio, mes: null, semana: null }),
+            label: "Todo el año",
+            activo: periodo.mes == null,
+          },
+          ...rep.mesesDisponibles.map((m) => ({
+            href: hrefPeriodo({ anio: periodo.anio, mes: m, semana: null }),
+            label: nombreMes(m),
+            activo: periodo.mes === m,
+          })),
+        ];
+
+  const filaSemanas: ItemPeriodo[] =
+    periodo.mes == null
+      ? []
+      : [
+          {
+            href: hrefPeriodo({ anio: periodo.anio, mes: periodo.mes, semana: null }),
+            label: "Todo el mes",
+            activo: periodo.semana == null,
+          },
+          ...rep.semanasDisponibles.map((s) => ({
+            href: hrefPeriodo({ anio: periodo.anio, mes: periodo.mes, semana: s }),
+            label: etiquetaSemanaCorta(s),
+            activo: periodo.semana === s,
+          })),
+        ];
+
   return (
     <>
       {/* ---------- MÓVIL (estilo iOS del mockup) ---------- */}
       <div className="lg:hidden">
         <h1 className="text-[32px] leading-[1.05] font-extrabold tracking-[-0.02em]">Reportes</h1>
 
-        {/* Selector de periodo (segmented control) */}
+        {/* Selector de periodo: año (segmented control) → mes → semana */}
         <div className="mt-4 flex gap-1 rounded-xl bg-muted p-1">
-          {anios.map((a) => {
-            const activo = periodo === a;
-            return (
-              <Link
-                key={a}
-                href={`/reportes?anio=${a}`}
-                className={`flex h-[34px] flex-1 items-center justify-center rounded-[9px] text-[13.5px] font-bold transition-colors ${
-                  activo
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground"
-                }`}
-              >
-                {a}
-              </Link>
-            );
-          })}
+          {anios.map((a) => (
+            <Link
+              key={a}
+              href={hrefPeriodo({ anio: a, mes: null, semana: null })}
+              className={`flex h-[34px] flex-1 items-center justify-center rounded-[9px] text-[13.5px] font-bold transition-colors ${
+                periodo.anio === a
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {a}
+            </Link>
+          ))}
           <Link
             href="/reportes"
             className={`flex h-[34px] flex-1 items-center justify-center rounded-[9px] text-[13.5px] font-bold transition-colors ${
-              periodo === "todos" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+              periodo.anio == null ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
             }`}
           >
             Todos
           </Link>
         </div>
+        <div className="mt-2 space-y-1.5">
+          <ChipsPeriodo items={filaMeses} sangrar />
+          <ChipsPeriodo items={filaSemanas} sangrar />
+        </div>
 
         {/* Hero: facturación + tendencia */}
         <div className="mt-4 rounded-[22px] p-5 text-white shadow-[0_16px_32px_-16px_var(--primary)] brand-gradient">
-          <div className="text-[13px] font-semibold opacity-90">Facturado · {periodoLabel}</div>
+          <div className="text-[13px] font-semibold opacity-90">Facturado · {rep.etiqueta}</div>
           <div className="mt-1 text-[38px] leading-none font-extrabold tracking-[-1.4px] tabular-nums">
             {pesos(rep.kpis.facturado)}
           </div>
@@ -226,7 +268,7 @@ export default async function ReportesPage({
         </div>
 
         {/* Ingresos por periodo */}
-        <Rotulo>{periodo === "todos" ? "Ingresos por año" : "Ingresos por mes"}</Rotulo>
+        <Rotulo>{rep.tituloSerie}</Rotulo>
         <div className="rounded-[18px] bg-card p-[18px_14px_12px] shadow-sm">
           <div className="flex h-[120px] items-end justify-between gap-1">
             {rep.ingresosPorPeriodo.map((b) => (
@@ -357,16 +399,17 @@ export default async function ReportesPage({
 
       {/* ---------- ESCRITORIO (se conserva) ---------- */}
       <div className="hidden space-y-5 lg:block">
-        {/* El selector de periodo vive en el navbar (segmented control). */}
+        {/* El año vive en el navbar (segmented control); mes y semana van en el
+            cuerpo: tres filas no caben en la barra superior. */}
         <AccionesSeccion>
           <div className="flex h-10 items-center gap-1 rounded-xl bg-superficie-suave p-1">
             {[
               ...anios.map((a) => ({
-                href: `/reportes?anio=${a}`,
+                href: hrefPeriodo({ anio: a, mes: null, semana: null }),
                 label: String(a),
-                activo: periodo === a,
+                activo: periodo.anio === a,
               })),
-              { href: "/reportes", label: "Todos", activo: periodo === "todos" },
+              { href: "/reportes", label: "Todos", activo: periodo.anio == null },
             ].map((t) => (
               <Link
                 key={t.label}
@@ -383,6 +426,14 @@ export default async function ReportesPage({
           </div>
         </AccionesSeccion>
 
+        {(filaMeses.length > 0 || filaSemanas.length > 0) && (
+          <div className="space-y-2">
+            <ChipsPeriodo items={filaMeses} />
+            <ChipsPeriodo items={filaSemanas} />
+            <p className="text-[13px] font-semibold text-muted-foreground">{rep.etiqueta}</p>
+          </div>
+        )}
+
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <KPI icono={<TrendingUp className="size-3.5" />} valor={pesos(rep.kpis.ingresos)} label="Ingresos" />
@@ -392,7 +443,7 @@ export default async function ReportesPage({
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-start">
-          <Seccion titulo={periodo === "todos" ? "Ingresos por año" : "Ingresos por mes"} icono={<TrendingUp className="size-4" />}>
+          <Seccion titulo={rep.tituloSerie} icono={<TrendingUp className="size-4" />}>
             <Barras datos={rep.ingresosPorPeriodo} formato="pesos" />
           </Seccion>
 
