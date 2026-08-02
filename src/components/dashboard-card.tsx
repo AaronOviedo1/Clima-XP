@@ -10,7 +10,8 @@ import type { TarjetaRenta } from "@/lib/dashboard";
 import { ENTREGA_HECHA, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { pesos } from "@/lib/dinero";
 import { linkMapsPunto } from "@/lib/maps";
-import { formatoTelefono, paraWhatsApp, linkWhatsApp } from "@/lib/telefono";
+import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
+import { abrirWhatsApp, mensajeEnRuta, mensajeRecoleccion } from "@/lib/whatsapp";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -68,15 +69,6 @@ export function DashboardCard({
     });
   }
 
-  // Aviso al cliente de que ya van en camino. El saludo se ajusta a la hora
-  // del dispositivo. Se arma en el click (no en el render) para no calcular la
-  // hora al hidratar y para que el saludo refleje el momento del envío.
-  function mensajeEnRuta() {
-    const h = new Date().getHours();
-    const saludo = h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
-    return `${saludo}, ya van en camino a entregarle👍`;
-  }
-
   // "En ruta" pregunta primero si se avisa al cliente: no siempre se manda el
   // WhatsApp. Sin teléfono no hay nada que preguntar.
   function pedirAviso() {
@@ -88,22 +80,17 @@ export function DashboardCard({
     setAvisoRuta(mensajeEnRuta());
   }
 
-  // El WhatsApp se abre disparando el click de un <a> creado al vuelo (no
-  // window.open, que la PWA instalada en iOS bloquea en silencio); sigue siendo
-  // el gesto de click del usuario, así que iOS lo permite.
   function enRuta(avisar: boolean) {
-    if (avisar) {
-      const url = linkWhatsApp(r.telefono, avisoRuta ?? mensajeEnRuta());
-      if (url) {
-        const a = document.createElement("a");
-        a.href = url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.click();
-      }
-    }
+    if (avisar) abrirWhatsApp(r.telefono, avisoRuta ?? mensajeEnRuta());
     setAvisoRuta(null);
     accion("EN_RUTA");
+  }
+
+  // Avisar que ya salieron a recoger. Aquí no hay estado que cambiar (no existe
+  // un "en ruta a recoger"), así que es un tap directo a WhatsApp: el mensaje
+  // se revisa y se manda desde la propia app de WhatsApp.
+  function avisarRecoleccion() {
+    abrirWhatsApp(r.telefono, mensajeRecoleccion(r.tiposEquipo, r.codigos.length));
   }
 
   // Entregar pregunta primero qué accesorios se dejaron (marcarEntregada los
@@ -241,17 +228,29 @@ export function DashboardCard({
             </Button>
           )}
           {!soloLectura && !hecha && r.estado === "ENTREGADA" && (
-            <Button
-              className="h-11 flex-1"
-              disabled={pending}
-              // Con accesorios en la calle se revisan uno por uno antes de
-              // cerrar; sin ellos no hay nada que preguntar.
-              onClick={() =>
-                r.accesoriosEntregados > 0 ? setDialogRecoleccion(true) : recoger([])
-              }
-            >
-              <PackageOpen className="size-4" /> Recogido
-            </Button>
+            <>
+              {r.telefono && (
+                <Button
+                  variant="secondary"
+                  className="h-11 flex-1"
+                  disabled={pending}
+                  onClick={avisarRecoleccion}
+                >
+                  <MessageCircle className="size-4" /> En camino
+                </Button>
+              )}
+              <Button
+                className="h-11 flex-1"
+                disabled={pending}
+                // Con accesorios en la calle se revisan uno por uno antes de
+                // cerrar; sin ellos no hay nada que preguntar.
+                onClick={() =>
+                  r.accesoriosEntregados > 0 ? setDialogRecoleccion(true) : recoger([])
+                }
+              >
+                <PackageOpen className="size-4" /> Recogido
+              </Button>
+            </>
           )}
         </div>
 

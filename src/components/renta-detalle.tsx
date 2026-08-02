@@ -161,6 +161,8 @@ export function RentaDetalle({
         estado={renta.estado as EstadoRentaStr}
         tiposEquipo={tiposEquipo}
         accesoriosEntregados={renta.accesorios.length}
+        telefono={renta.cliente.telefono}
+        equipos={renta.unidades.length}
       />
 
       {/* Tarjeta de info: dirección, periodo, equipo */}

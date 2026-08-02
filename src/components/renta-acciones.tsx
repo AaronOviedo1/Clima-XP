@@ -9,9 +9,11 @@ import {
   ACCION_ESTADO,
   type EstadoRentaStr,
 } from "@/lib/rentas";
+import { abrirWhatsApp, mensajeRecoleccion } from "@/lib/whatsapp";
 import { Button } from "@/components/ui/button";
 import { DialogoEntrega } from "@/components/dialogo-entrega";
 import { DialogoRecoleccion } from "@/components/dialogo-recoleccion";
+import { MessageCircle } from "lucide-react";
 
 // Mensaje de confirmación (toast) por estado destino.
 const TOAST_ESTADO: Record<EstadoRentaStr, string> = {
@@ -29,15 +31,21 @@ export function RentaAcciones({
   estado,
   tiposEquipo,
   accesoriosEntregados = 0,
+  telefono,
+  equipos = 0,
 }: {
   rentaId: string;
   estado: EstadoRentaStr;
   // Tipos de equipo de esta renta (AEROCOOLER/CALENTON): decide qué accesorios
-  // ofrecer al marcar la entrega.
+  // ofrecer al marcar la entrega y cómo se le nombra al equipo en el WhatsApp.
   tiposEquipo: string[];
   // Cuántos accesorios salieron con la renta: con cero no hay nada que revisar
   // al recoger y el botón sigue siendo de un tap.
   accesoriosEntregados?: number;
+  // Para avisarle al cliente que ya van a recoger. Sin teléfono no hay botón.
+  telefono?: string | null;
+  // Cuántas unidades lleva la renta: define el singular/plural del mensaje.
+  equipos?: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -98,6 +106,18 @@ export function RentaAcciones({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
+        {/* Con el equipo en casa del cliente, avisar que ya salieron por él.
+            No cambia el estado (no existe un "en ruta a recoger"): abre
+            WhatsApp con el mensaje listo. */}
+        {estado === "ENTREGADA" && telefono && (
+          <Button
+            variant="secondary"
+            className="h-11 flex-1"
+            onClick={() => abrirWhatsApp(telefono, mensajeRecoleccion(tiposEquipo, equipos))}
+          >
+            <MessageCircle className="size-4" /> En camino
+          </Button>
+        )}
         {destinos.map((d) => {
           const cancelar = d === "CANCELADA";
           const esEntrega = d === "ENTREGADA";
