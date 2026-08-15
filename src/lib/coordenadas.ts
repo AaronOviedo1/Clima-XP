@@ -6,6 +6,21 @@
 
 export type Coordenadas = { lat: number; lng: number };
 
+// Distancia en línea recta (haversine). Vive aquí, y no en cobertura.ts, porque
+// también la usa el autocompletado (`google-maps.ts`) y cobertura ya importa a
+// google-maps: ponerla allá cerraba el ciclo. Nunca sirve para cobrar —para eso
+// están los km de manejo de Distance Matrix—, solo para descartar lo lejano.
+export function kmEnLineaRecta(a: Coordenadas, b: Coordenadas): number {
+  const R = 6371;
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
 function valida(lat: number, lng: number): Coordenadas | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;

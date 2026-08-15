@@ -13,6 +13,15 @@ export function linkMapsPunto(
   return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
+// URL para incrustar (<iframe>) un mapa con un solo punto, para confirmar a
+// ojo dónde cayó la dirección. Mismo embed clásico que la ruta del día: **no
+// requiere API key ni la expone en el cliente**, y no gasta cargas de la Maps
+// JavaScript API (que sí se facturan por vista).
+export function embedPuntoMaps(lat: number, lng: number, zoom = 16): string {
+  const params = new URLSearchParams({ q: `${lat},${lng}`, z: String(zoom), output: "embed" });
+  return `https://maps.google.com/maps?${params.toString()}`;
+}
+
 export type ParadaRuta = {
   direccion: string;
   lat?: number | null;

@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { Coordenadas } from "@/lib/coordenadas";
+import { kmEnLineaRecta, type Coordenadas } from "@/lib/coordenadas";
 import { localidadDeCoords, mapsHabilitado, type Localidad } from "@/lib/google-maps";
 import { obtenerBodega } from "@/lib/configuracion";
 
@@ -45,18 +45,26 @@ export function esHermosillo(texto: string | null | undefined): boolean {
   return texto ? normalizar(texto).includes("hermosillo") : false;
 }
 
-// Distancia en línea recta, como respaldo cuando no hay km de manejo (sin
-// bodega o con Distance Matrix caído). Solo sirve para descartar lo obviamente
-// lejano, nunca para cobrar.
-function kmEnLineaRecta(a: Coordenadas, b: Coordenadas): number {
-  const R = 6371;
-  const rad = (g: number) => (g * Math.PI) / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLng = rad(b.lng - a.lng);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+// Centro de Hermosillo. Solo se usa como respaldo del área de sugerencias
+// cuando no hay bodega capturada; para cobrar km siempre manda la bodega.
+const CENTRO_HERMOSILLO: Coordenadas = { lat: 29.0729, lng: -110.9559 };
+
+/**
+ * Área dentro de la que el autocompletado ofrece direcciones: el mismo círculo
+ * que acepta la cobertura, para que Google nunca sugiera algo que después se
+ * va a rechazar ni corte una dirección buena. Sale de la tabla `ZonaEnvio`, así
+ * que si se agregan filas en /configuracion el autocompletado crece con ellas.
+ *
+ * El radio es en línea recta y la cobertura mide manejando, así que el círculo
+ * queda un pelo más permisivo — a propósito: es mejor sugerirla y que la
+ * cobertura explique por qué no se puede, que no mostrarla nunca.
+ */
+export async function areaDeSugerencias(): Promise<{ centro: Coordenadas; radioMetros: number }> {
+  const [bodega, kmMax] = await Promise.all([obtenerBodega(), kmMaximosCobertura()]);
+  return {
+    centro: bodega?.coords ?? CENTRO_HERMOSILLO,
+    radioMetros: Math.round(kmMax * MARGEN_KM * 1000),
+  };
 }
 
 export type EntradaCobertura = {

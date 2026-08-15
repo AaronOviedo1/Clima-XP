@@ -8,6 +8,7 @@ import type { SugerenciaDireccion } from "@/lib/google-maps";
 import { esLinkCortoMaps, esUrl, parseCoordenadas } from "@/lib/coordenadas";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MapaPunto } from "@/components/renta/mapa-punto";
 
 // ¿Lo escrito o pegado es un link de Maps / coordenadas? Entonces no se buscan
 // sugerencias: se resuelve como ubicación.
@@ -122,6 +123,15 @@ export function CampoDireccion({ form, opcional }: { form: RentaFormApi; opciona
       {form.ubicando && (
         <p className="text-[12.5px] text-muted-foreground">Calculando distancia desde la bodega…</p>
       )}
+
+      {/* Sale con el punto ya resuelto, venga de una sugerencia elegida, de un
+          link pegado o del geocoder al salir del campo. */}
+      <MapaPunto
+        direccion={form.direccion}
+        lat={form.lat}
+        lng={form.lng}
+        recalculando={form.ubicando}
+      />
     </section>
   );
 }

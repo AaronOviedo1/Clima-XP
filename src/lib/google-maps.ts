@@ -1,11 +1,33 @@
 // Geocoding + Distance Matrix (Fase 4). Solo servidor: usa GOOGLE_MAPS_API_KEY.
 // La key debe tener habilitadas Geocoding API y Distance Matrix API.
 
-import type { Coordenadas } from "@/lib/coordenadas";
+import { kmEnLineaRecta, type Coordenadas } from "@/lib/coordenadas";
 
 // Sesgo (no restricción) hacia el área de Hermosillo y alrededores,
 // para que direcciones ambiguas resuelvan aquí y no en otra ciudad.
 const BOUNDS_HERMOSILLO = "28.85,-111.25|29.35,-110.75";
+
+// El autocompletado solo ofrece direcciones dentro del área de servicio: un
+// círculo alrededor de la bodega, del tamaño que diga la tabla de tarifas.
+// Quien llama lo calcula (`areaDeSugerencias` en cobertura.ts, que sí lee la
+// BD) y lo pasa; aquí solo se traduce al formato de cada API.
+export type AreaSugerencias = { centro: Coordenadas; radioMetros: number };
+
+// Defensa de respaldo por si el círculo se quedara corto: Google escribe el
+// estado en toda predicción mexicana ("…, Hermosillo, Son., México"). La coma
+// antes del nombre es a propósito — sin ella, una "Calle Sonora" de cualquier
+// otro estado pasaría el filtro.
+const ESTADO_SONORA = /,\s*son(ora|\.)\s*(,|$)/i;
+
+// Ordena las sugerencias sin cambiar cuáles son: las de Hermosillo primero.
+// Restringir el área obliga a soltar el sesgo de Places hacia la ciudad (los
+// dos parámetros son excluyentes), y sin esto "Calle Yáñez" empezaba a sugerir
+// las comisarías antes que las cuatro calles de Hermosillo con ese nombre.
+function hermosilloPrimero(sugerencias: SugerenciaDireccion[]): SugerenciaDireccion[] {
+  const esLocal = (s: SugerenciaDireccion) =>
+    /hermosillo/i.test(`${s.descripcion} ${s.detalle ?? ""}`) ? 0 : 1;
+  return [...sugerencias].sort((a, b) => esLocal(a) - esLocal(b));
+}
 
 export function mapsHabilitado(): boolean {
   return Boolean(process.env.GOOGLE_MAPS_API_KEY);
@@ -118,7 +140,10 @@ export type SugerenciaDireccion = {
 // Autocompletado de Google Places. Es el bueno —completa mientras escribes—
 // pero requiere "Places API (New)" habilitada en la llave; si está bloqueada
 // devuelve null y quien llama cae al geocoder, que sí está activo.
-async function sugerenciasDePlaces(texto: string): Promise<SugerenciaDireccion[] | null> {
+async function sugerenciasDePlaces(
+  texto: string,
+  area: AreaSugerencias,
+): Promise<SugerenciaDireccion[] | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return null;
 
@@ -131,9 +156,14 @@ async function sugerenciasDePlaces(texto: string): Promise<SugerenciaDireccion[]
         input: texto,
         languageCode: "es",
         regionCode: "MX",
-        // Sesgo a Hermosillo: sin esto sugiere calles de todo el país.
-        locationBias: {
-          circle: { center: { latitude: 29.0729, longitude: -110.9559 }, radius: 40000 },
+        includedRegionCodes: ["mx"],
+        // Solo el área de servicio. Es restricción, no sesgo: `locationBias` y
+        // `locationRestriction` son excluyentes y aquí manda el segundo.
+        locationRestriction: {
+          circle: {
+            center: { latitude: area.centro.lat, longitude: area.centro.lng },
+            radius: area.radioMetros,
+          },
         },
       }),
     });
@@ -147,15 +177,22 @@ async function sugerenciasDePlaces(texto: string): Promise<SugerenciaDireccion[]
       };
     }[];
     return items
-      .filter((s) => s.placePrediction)
-      .map((s) => ({
-        descripcion:
-          s.placePrediction!.structuredFormat?.mainText?.text ??
-          s.placePrediction!.text?.text ??
-          "",
-        detalle: s.placePrediction!.structuredFormat?.secondaryText?.text ?? null,
+      .flatMap((s) => (s.placePrediction ? [s.placePrediction] : []))
+      // El filtro de estado va sobre la predicción completa: `mainText` es solo
+      // la calle y ahí nunca aparece "Son.".
+      .filter((p) =>
+        ESTADO_SONORA.test(
+          p.text?.text ??
+            [p.structuredFormat?.mainText?.text, p.structuredFormat?.secondaryText?.text]
+              .filter(Boolean)
+              .join(", "),
+        ),
+      )
+      .map((p) => ({
+        descripcion: p.structuredFormat?.mainText?.text ?? p.text?.text ?? "",
+        detalle: p.structuredFormat?.secondaryText?.text ?? null,
         coords: null,
-        placeId: s.placePrediction!.placeId,
+        placeId: p.placeId,
       }))
       .filter((s) => s.descripcion);
   } catch {
@@ -166,7 +203,10 @@ async function sugerenciasDePlaces(texto: string): Promise<SugerenciaDireccion[]
 // Places "clásica" (maps.googleapis.com). Es la que funciona hoy con la llave
 // del negocio: la versión New responde 403 aunque aparezca seleccionada en las
 // restricciones. Completa igual de bien desde las primeras letras.
-async function sugerenciasDePlacesLegacy(texto: string): Promise<SugerenciaDireccion[] | null> {
+async function sugerenciasDePlacesLegacy(
+  texto: string,
+  area: AreaSugerencias,
+): Promise<SugerenciaDireccion[] | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return null;
 
@@ -174,9 +214,13 @@ async function sugerenciasDePlacesLegacy(texto: string): Promise<SugerenciaDirec
   url.searchParams.set("input", texto);
   url.searchParams.set("language", "es");
   url.searchParams.set("components", "country:mx");
-  // Sesgo a Hermosillo: sin esto sugiere calles de todo el país.
-  url.searchParams.set("location", "29.0729,-110.9559");
-  url.searchParams.set("radius", "40000");
+  // Solo el área de servicio (reemplaza al sesgo `location`+`radius`, que son
+  // excluyentes con la restricción). Verificado contra la API: fuera del
+  // círculo devuelve ZERO_RESULTS en vez de calles de otra ciudad.
+  url.searchParams.set(
+    "locationrestriction",
+    `circle:${area.radioMetros}@${area.centro.lat},${area.centro.lng}`,
+  );
   url.searchParams.set("key", key);
 
   try {
@@ -189,6 +233,9 @@ async function sugerenciasDePlacesLegacy(texto: string): Promise<SugerenciaDirec
       structured_formatting?: { main_text?: string; secondary_text?: string };
       description: string;
     }[])
+      // El filtro va antes del recorte: con él después, una predicción de
+      // fuera se comería uno de los cinco lugares.
+      .filter((p) => ESTADO_SONORA.test(p.description))
       .slice(0, 5)
       .map((p) => ({
         descripcion: p.structured_formatting?.main_text ?? p.description,
@@ -204,7 +251,10 @@ async function sugerenciasDePlacesLegacy(texto: string): Promise<SugerenciaDirec
 // Plan C: el geocoder devuelve varios resultados para un texto parcial. No
 // completa como Places (hay que escribir casi toda la calle), pero ya está
 // habilitado y trae las coordenadas de una vez.
-async function sugerenciasDeGeocoding(texto: string): Promise<SugerenciaDireccion[]> {
+async function sugerenciasDeGeocoding(
+  texto: string,
+  area: AreaSugerencias,
+): Promise<SugerenciaDireccion[]> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return [];
 
@@ -223,6 +273,18 @@ async function sugerenciasDeGeocoding(texto: string): Promise<SugerenciaDireccio
       formatted_address: string;
       geometry: { location: { lat: number; lng: number } };
     }[])
+      // El geocoder no acepta restricción (su `bounds` es solo sesgo), pero a
+      // cambio devuelve las coordenadas: se mide contra el mismo círculo que
+      // usan las otras dos fuentes, que además es exacto.
+      .filter(
+        (r) =>
+          kmEnLineaRecta(area.centro, {
+            lat: r.geometry.location.lat,
+            lng: r.geometry.location.lng,
+          }) *
+            1000 <=
+          area.radioMetros,
+      )
       .slice(0, 5)
       .map((r) => {
         const [principal, ...resto] = r.formatted_address.split(",");
@@ -240,12 +302,16 @@ async function sugerenciasDeGeocoding(texto: string): Promise<SugerenciaDireccio
 
 // Se intenta la mejor primero y se cae a la siguiente cuando la llave no tiene
 // permiso: Places (New) → Places clásica → geocoder. Así la app funciona con lo
-// que esté habilitado y mejora sola si se habilita más.
-export async function sugerenciasDeDireccion(texto: string): Promise<SugerenciaDireccion[]> {
-  return (
-    (await sugerenciasDePlaces(texto)) ??
-    (await sugerenciasDePlacesLegacy(texto)) ??
-    (await sugerenciasDeGeocoding(texto))
+// que esté habilitado y mejora sola si se habilita más. Las tres devuelven ya
+// solo direcciones del área de servicio; aquí únicamente se acomodan.
+export async function sugerenciasDeDireccion(
+  texto: string,
+  area: AreaSugerencias,
+): Promise<SugerenciaDireccion[]> {
+  return hermosilloPrimero(
+    (await sugerenciasDePlaces(texto, area)) ??
+      (await sugerenciasDePlacesLegacy(texto, area)) ??
+      (await sugerenciasDeGeocoding(texto, area)),
   );
 }
 

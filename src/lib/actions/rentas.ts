@@ -40,7 +40,7 @@ import {
   type Localidad,
   type SugerenciaDireccion,
 } from "@/lib/google-maps";
-import { motivoFueraDeCobertura } from "@/lib/cobertura";
+import { areaDeSugerencias, motivoFueraDeCobertura } from "@/lib/cobertura";
 import { obtenerBodega } from "@/lib/configuracion";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
@@ -83,12 +83,13 @@ export async function resolverUbicacion(texto: string): Promise<ResultadoUbicaci
 
 // Sugerencias mientras se escribe la dirección. Con "Places API (New)"
 // habilitada en la llave completa como Google Maps; si no, cae al geocoder
-// (hay que escribir casi toda la calle, pero funciona sin tocar nada).
+// (hay que escribir casi toda la calle, pero funciona sin tocar nada). Solo
+// ofrece direcciones dentro del área de servicio (ver `areaDeSugerencias`).
 export async function sugerenciasDireccion(texto: string): Promise<SugerenciaDireccion[]> {
   const q = texto.trim();
   // Con menos de 4 letras las sugerencias son ruido y se gastan llamadas.
   if (q.length < 4 || !mapsHabilitado()) return [];
-  return sugerenciasDeDireccion(q);
+  return sugerenciasDeDireccion(q, await areaDeSugerencias());
 }
 
 // Coordenadas de una sugerencia elegida (solo las de Places las necesitan).
