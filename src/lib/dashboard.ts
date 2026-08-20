@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   rentaListSelect,
@@ -63,10 +64,13 @@ export type RentaConSaldo = { renta: RentaLista; saldo: number; total: number };
  * aviso de saldos la comparten). Se excluyen CONCLUIDA (ya cerradas), CANCELADA
  * y COTIZADA (aún no es venta).
  */
-export async function saldosPendientes(limite = 300): Promise<RentaConSaldo[]> {
+export async function saldosPendientes(
+  limite = 300,
+  scope: Prisma.RentaWhereInput = {},
+): Promise<RentaConSaldo[]> {
   const candidatas = await prisma.renta.findMany({
     relationLoadStrategy: "join",
-    where: { estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA"] } },
+    where: { ...scope, estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA"] } },
     select: rentaListSelect,
     orderBy: { fechaInicio: "asc" },
     take: limite,
@@ -92,8 +96,12 @@ export async function datosDelDia(opts: {
   esAdmin: boolean;
   conSaldos?: boolean; // /ruta lo apaga: no usa saldos
   fecha?: string; // "yyyy-mm-dd"; por defecto hoy (usado por /ruta para armar rutas de otros días)
+  // Condiciones que llevan TODAS las queries de aquí (el copiloto pasa su
+  // scope de negocio; las pantallas no mandan nada).
+  scope?: Prisma.RentaWhereInput;
 }): Promise<DatosDelDia> {
   const conSaldos = opts.conSaldos ?? opts.esAdmin;
+  const scope = opts.scope ?? {};
   const hoyStr = opts.fecha ?? hoyNegocio();
   const mananaStr = sumarDiasInput(hoyStr, 1);
   const hoy = fechaDesdeInput(hoyStr);
@@ -106,6 +114,7 @@ export async function datosDelDia(opts: {
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
+        ...scope,
         fechaInicio: { equals: hoy },
         estado: { in: ["CONFIRMADA", "EN_RUTA", "ENTREGADA", "RECOGIDA", "CONCLUIDA"] },
       },
@@ -115,6 +124,7 @@ export async function datosDelDia(opts: {
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
+        ...scope,
         fechaFin: { equals: hoy },
         estado: { in: ["ENTREGADA", "RECOGIDA", "CONCLUIDA"] },
       },
@@ -124,6 +134,7 @@ export async function datosDelDia(opts: {
     prisma.renta.findMany({
       relationLoadStrategy: "join",
       where: {
+        ...scope,
         fechaInicio: { equals: manana },
         // Solo lo que de verdad sale mañana: una cotización que nadie confirmó
         // no es una entrega, y aparecía en el resumen como si lo fuera.
@@ -132,7 +143,7 @@ export async function datosDelDia(opts: {
       select: rentaTarjetaSelect,
       orderBy: { createdAt: "asc" },
     }),
-    conSaldos ? saldosPendientes() : Promise.resolve([] as RentaConSaldo[]),
+    conSaldos ? saldosPendientes(300, scope) : Promise.resolve([] as RentaConSaldo[]),
   ]);
 
   // Pendientes primero, lo ya hecho al final (sort estable conserva createdAt).

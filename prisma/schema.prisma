@@ -74,14 +74,15 @@ enum EstadoTambo {
 }
 
 model User {
-  id                String            @id @default(cuid())
+  id                String             @id @default(cuid())
   nombre            String
-  email             String            @unique
+  email             String             @unique
   passwordHash      String
-  rol               Rol               @default(REPARTIDOR)
-  rentas            Renta[]           @relation("RepartidorRentas")
+  rol               Rol                @default(REPARTIDOR)
+  rentas            Renta[]            @relation("RepartidorRentas")
   suscripcionesPush SuscripcionPush[]
-  createdAt         DateTime          @default(now())
+  consultasCopiloto ConsultaCopiloto[]
+  createdAt         DateTime           @default(now())
 }
 
 // Una fila por dispositivo (no por usuario): el mismo repartidor puede tener el
@@ -252,4 +253,23 @@ model Configuracion {
   clave     String   @id
   valor     String
   updatedAt DateTime @updatedAt
+}
+
+// Bitácora del copiloto de chat: una fila por consulta, también las fallidas y
+// las rechazadas por rate limit (con `error`), para ver uso, costo y errores.
+// El rate limit (lib/copiloto/rate-limit.ts) cuenta sobre esta misma tabla.
+model ConsultaCopiloto {
+  id            String   @id @default(cuid())
+  userId        String
+  usuario       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rol           Rol // el rol con el que corrió, por si cambia después
+  pregunta      String // texto del usuario (en modo directo, el cuerpo { tool, args })
+  toolsLlamadas String[]
+  tokensEntrada Int      @default(0)
+  tokensSalida  Int      @default(0)
+  latenciaMs    Int
+  error         String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

@@ -31,7 +31,9 @@ const unidadConModelo = {
 export const rentaListSelect = {
   ...rentaListaScalars,
   direccion: true,
-  cliente: { select: { nombre: true } },
+  // El teléfono lo usa el copiloto (saldos_pendientes); para las listas es un
+  // dato más del join, no se pinta.
+  cliente: { select: { nombre: true, telefono: true } },
   unidades: {
     select: { precioDia: true, unidad: { select: { modelo: unidadConModelo } } },
   },

@@ -191,10 +191,15 @@ export type Reportes = {
   tendencia: { mostrar: boolean; pct: number; sube: boolean; label: string };
 };
 
-export async function generarReportes(periodo: PeriodoReporte): Promise<Reportes> {
+// `scope`: condiciones extra que lleva la query (el copiloto pasa su scope de
+// negocio; la pantalla de reportes no manda nada).
+export async function generarReportes(
+  periodo: PeriodoReporte,
+  scope: Prisma.RentaWhereInput = {},
+): Promise<Reportes> {
   const rentas = await prisma.renta.findMany({
     relationLoadStrategy: "join", // 1 solo round-trip a la BD remota
-    where: { estado: { in: [...ESTADOS_NEGOCIO] } },
+    where: { ...scope, estado: { in: [...ESTADOS_NEGOCIO] } },
     select: reporteSelect,
     orderBy: { fechaInicio: "asc" },
   });

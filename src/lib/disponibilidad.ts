@@ -11,7 +11,7 @@ export const ESTADOS_ACTIVOS = ["CONFIRMADA", "EN_RUTA", "ENTREGADA"] as const;
  * ya cuenta como libre para otra entrega. Una renta con entrega y recolección
  * el mismo día ocupa ese único día.
  */
-function condicionTraslape(inicio: Date, fin: Date) {
+export function condicionTraslape(inicio: Date, fin: Date) {
   // Rango de un solo día: tratarlo como [inicio, inicio + 1).
   const finExclusivo = fin > inicio ? fin : addDays(inicio, 1);
   return {

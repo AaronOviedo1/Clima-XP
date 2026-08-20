@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/desktop/sidebar";
 import { TopBar } from "@/components/desktop/top-bar";
 import { SeccionProvider } from "@/components/desktop/seccion";
 import { RegistrarSW } from "@/components/push/registrar-sw";
+import { Copiloto } from "@/components/copiloto/copiloto";
+import { copilotoHabilitado } from "@/lib/copiloto/flag";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { fechaDesdeInput, fechaLarga, hoyNegocio } from "@/lib/fechas";
 
@@ -56,6 +58,9 @@ export default async function AppLayout({
       </SeccionProvider>
 
       <RegistrarSW />
+      {/* Copiloto de chat (solo lectura), detrás del flag COPILOTO_HABILITADO.
+          Vive aquí para conservar la conversación al navegar. */}
+      {copilotoHabilitado() && <Copiloto esAdmin={esAdmin} nombre={nombre} />}
     </div>
   );
 }
