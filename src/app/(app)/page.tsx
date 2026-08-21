@@ -6,6 +6,7 @@ import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { datosDelDia, tarjetaDesdeRenta } from "@/lib/dashboard";
 import { fechaCorta, fechaLarga } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
+import { formatoTelefono } from "@/lib/telefono";
 import { equiposPorModelo, totalesDeRenta } from "@/lib/rentas";
 import { claseColorDia } from "@/lib/colores-dia";
 import type { RentaListItemData } from "@/components/renta-list-item";
@@ -92,11 +93,15 @@ function FilaCompacta({
   extra,
   mostrarMonto,
 }: {
-  renta: RentaListItemData;
+  // El teléfono ya viaja en el select de las dos listas (Mañana y Saldos).
+  renta: RentaListItemData & { cliente: { telefono: string | null } };
   extra?: React.ReactNode;
   mostrarMonto?: React.ReactNode;
 }) {
   const equipos = equiposPorModelo(renta.unidades);
+  const telefono = formatoTelefono(renta.cliente.telefono);
+  const detalle =
+    extra ?? equipos.map((e) => `${e.cantidad} × ${e.nombre}`).join(" · ");
   return (
     <Link
       href={`/rentas/${renta.id}`}
@@ -109,8 +114,9 @@ function FilaCompacta({
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold">{renta.cliente.nombre}</div>
         <div className="truncate text-xs text-tenue">
-          {extra ??
-            equipos.map((e) => `${e.cantidad} × ${e.nombre}`).join(" · ")}
+          {telefono && <span className="font-semibold">{telefono}</span>}
+          {telefono && detalle ? " · " : null}
+          {detalle}
         </div>
       </div>
       {mostrarMonto}
