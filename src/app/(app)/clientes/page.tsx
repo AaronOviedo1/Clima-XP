@@ -12,6 +12,7 @@ import {
   CLASE_ACCION_TOP_BAR,
 } from "@/components/desktop/seccion";
 import { EdicionMasivaClientesDialog } from "@/components/clientes-masivo";
+import { ClientesOrden } from "@/components/clientes-orden";
 import { tiposDeEquipoDeRentas } from "@/lib/rentas";
 import { GRID_CLIENTES } from "@/lib/grids";
 import { cn } from "@/lib/utils";
@@ -48,10 +49,12 @@ const CLI_GRID = GRID_CLIENTES;
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; orden?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, orden: ordenParam } = await searchParams;
   const busqueda = q?.trim();
+  // Alfabético por default; "rentas" = los que más han rentado.
+  const orden = ordenParam === "rentas" ? "rentas" : "nombre";
 
   const telefonoNorm = busqueda ? normalizarTelefono(busqueda) : null;
   const clientes = await prisma.cliente.findMany({
@@ -74,7 +77,14 @@ export default async function ClientesPage({
         },
       },
     },
-    orderBy: { nombre: "asc" },
+    orderBy:
+      orden === "rentas"
+        ? // El desempate por nombre no sobra: cientos de clientes empatan en el
+          // mismo número de rentas (0 los que nunca rentaron) y sin él Postgres
+          // los devuelve en el orden que quiera, así que la lista se reacomoda
+          // sola entre cargas.
+          [{ rentas: { _count: "desc" } }, { nombre: "asc" }]
+        : { nombre: "asc" },
   });
 
   // DTO plano para la selección múltiple (el pop-up es client component).
@@ -91,6 +101,7 @@ export default async function ClientesPage({
     <div className="space-y-5">
       {/* En desktop las acciones viven en el TopBar, junto a "Nueva renta". */}
       <AccionesSeccion>
+        <ClientesOrden orden={orden} className={CLASE_ACCION_TOP_BAR} />
         <EdicionMasivaClientesDialog
           clientes={clientesMasivo}
           triggerClassName={CLASE_ACCION_TOP_BAR}
@@ -114,6 +125,7 @@ export default async function ClientesPage({
         <div className="flex-1">
           <Buscador placeholder="Buscar cliente o teléfono" />
         </div>
+        <ClientesOrden orden={orden} />
         <EdicionMasivaClientesDialog clientes={clientesMasivo} />
       </div>
 
