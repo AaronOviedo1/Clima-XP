@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowUp, MessageCircleMore, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowUp, ImagePlus, MessageCircleMore, Sparkles, Trash2, X } from "lucide-react";
 import { ocultarTabBar } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import type { PropuestaCliente } from "@/lib/copiloto/accion";
 import { TextoRespuesta } from "./texto-respuesta";
 import { TarjetaPropuesta, type DecisionPropuesta } from "./tarjeta-propuesta";
+import { prepararImagen, type ImagenPreparada } from "./imagen-cliente";
 
-// Mensaje tal cual se ve en el panel. `error`, `aviso`, `fuentes` y `propuesta`
-// son locales: al API solo viajan `rol` y `texto`, y los mensajes de error o
-// aviso no se reenvían (no son del asistente, son del sistema avisando algo).
+// Mensaje tal cual se ve en el panel. `error`, `aviso`, `fuentes`, `propuesta`
+// y `miniatura` son locales: al API solo viajan `rol`, `texto` y —si hubo
+// imagen— su `lectura` (la imagen misma solo viaja una vez, al mandarla), y
+// los mensajes de error o aviso no se reenvían (no son del asistente, son del
+// sistema avisando algo).
 type Mensaje = {
   id: string;
   rol: "usuario" | "asistente";
@@ -23,6 +26,8 @@ type Mensaje = {
   aviso?: boolean; // neutro y no se reenvía (p. ej. "tienes una acción pendiente")
   fuentes?: string[]; // tools que consultó, para decir "de dónde salió"
   propuesta?: PropuestaCliente; // la acción propuesta en ese turno, con su estado
+  miniatura?: string; // data URL chica de la imagen que adjuntó la persona
+  lectura?: string; // lo que el servidor leyó en esa imagen; se reenvía en los turnos siguientes
 };
 
 const CLAVE_SESION = "copiloto:conversacion";
@@ -30,6 +35,7 @@ const MAX_LOCAL = 40; // mensajes que se conservan en el panel
 const MAX_ENVIADOS = 20; // los que acepta el API por turno
 
 const ETIQUETA_TOOL: Record<string, string> = {
+  leer_imagen: "la imagen",
   resumen_operativo: "resumen del día",
   buscar_rentas: "rentas",
   buscar_unidades: "inventario",
@@ -95,9 +101,13 @@ export function Copiloto({
   const [mensajes, setMensajes] = useState<Mensaje[]>(cargarSesion);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [leyendo, setLeyendo] = useState(false); // el turno en vuelo lleva imagen
+  const [adjunto, setAdjunto] = useState<ImagenPreparada | null>(null);
+  const [preparando, setPreparando] = useState(false);
   const [decidiendo, setDecidiendo] = useState<string | null>(null);
   const [minutosRestantes, setMinutosRestantes] = useState<number | null>(null);
   const finRef = useRef<HTMLDivElement>(null);
+  const archivoRef = useRef<HTMLInputElement>(null);
 
   // La propuesta viva (si la hay) bloquea el chat hasta que se decida.
   const pendiente = mensajes.find((m) => m.propuesta?.estado === "PROPUESTA")?.propuesta ?? null;
@@ -148,31 +158,67 @@ export function Copiloto({
 
   const rol = esAdmin ? "ADMIN" : "REPARTIDOR";
 
-  async function enviar(pregunta: string) {
+  // Adjuntar la captura: desde el botón (cámara o carrete) o pegándola.
+  async function adjuntar(archivo: File | Blob | undefined) {
+    if (!archivo || preparando) return;
+    setPreparando(true);
+    try {
+      setAdjunto(await prepararImagen(archivo));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No pude abrir esa imagen.");
+    } finally {
+      setPreparando(false);
+      if (archivoRef.current) archivoRef.current.value = "";
+    }
+  }
+
+  async function enviar(pregunta: string, imagen: ImagenPreparada | null = adjunto) {
     const limpia = pregunta.trim();
-    if (!limpia || enviando || pendiente) return;
-    const mio: Mensaje = { id: nuevoId(), rol: "usuario", texto: limpia };
+    if ((!limpia && !imagen) || enviando || pendiente) return;
+    const mio: Mensaje = {
+      id: nuevoId(),
+      rol: "usuario",
+      texto: limpia,
+      ...(imagen ? { miniatura: imagen.miniatura } : {}),
+    };
     const historial = [...mensajes, mio];
     setMensajes(historial);
     setTexto("");
+    setAdjunto(null);
     setEnviando(true);
+    setLeyendo(!!imagen);
     try {
       const res = await fetch("/api/copiloto", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          // La imagen viaja solo con el mensaje nuevo; los anteriores mandan la
+          // lectura que el servidor devolvió (el historial sigue siendo texto).
           mensajes: historial
             .filter((m) => !m.error && !m.aviso)
             .slice(-MAX_ENVIADOS)
-            .map((m) => ({ rol: m.rol, texto: m.texto })),
+            .map((m) => ({
+              rol: m.rol,
+              texto: m.texto,
+              ...(m.lectura ? { lectura: m.lectura } : {}),
+              ...(m.id === mio.id && imagen ? { imagen: { tipo: imagen.tipo, base64: imagen.base64 } } : {}),
+            })),
         }),
       });
       const datos = (await res.json().catch(() => null)) as
-        | { respuesta?: string; toolsLlamadas?: string[]; error?: string; propuesta?: PropuestaCliente }
+        | {
+            respuesta?: string;
+            toolsLlamadas?: string[];
+            error?: string;
+            propuesta?: PropuestaCliente;
+            lectura?: string;
+          }
         | null;
       if (res.ok && datos?.respuesta) {
         setMensajes((m) => [
-          ...m,
+          // La lectura se queda con el mensaje que llevó la imagen: se ve en la
+          // burbuja y es lo que se reenvía en los turnos siguientes.
+          ...m.map((x) => (x.id === mio.id && datos.lectura ? { ...x, lectura: datos.lectura } : x)),
           {
             id: nuevoId(),
             rol: "asistente",
@@ -210,6 +256,7 @@ export function Copiloto({
       ]);
     } finally {
       setEnviando(false);
+      setLeyendo(false);
     }
   }
 
@@ -277,6 +324,7 @@ export function Copiloto({
     if (pendiente) await decidir(pendiente.id, "cancelar");
     setMensajes([]);
     setTexto("");
+    setAdjunto(null);
   }
 
   if (!abierto) {
@@ -340,6 +388,9 @@ export function Copiloto({
               {acciones
                 ? "También puedo proponerte acciones (como poner una entrega en ruta); nada se hace hasta que tú confirmes."
                 : "Solo consulto; no cambio nada."}
+              {acciones && esAdmin
+                ? " Si te llegó un pedido por WhatsApp, adjunta la captura y dime «cotízale» o «hazle la renta»."
+                : ""}
             </p>
             <div className="flex flex-wrap gap-2">
               {SUGERENCIAS[rol].map((s) => (
@@ -372,7 +423,25 @@ export function Copiloto({
                   )}
                 >
                   {m.rol === "usuario" ? (
-                    <p className="text-[14.5px] leading-snug whitespace-pre-wrap">{m.texto}</p>
+                    <>
+                      {m.miniatura && (
+                        // eslint-disable-next-line @next/next/no-img-element -- data URL local, no pasa por el optimizador
+                        <img
+                          src={m.miniatura}
+                          alt="Imagen adjunta"
+                          className={cn("max-h-44 w-auto rounded-lg", m.texto && "mb-1.5")}
+                        />
+                      )}
+                      {m.texto && <p className="text-[14.5px] leading-snug whitespace-pre-wrap">{m.texto}</p>}
+                      {m.lectura && (
+                        // Lo que el servidor leyó en la captura: la persona puede
+                        // revisar que no se haya leído mal un número o una fecha.
+                        <details className="mt-1.5 text-[12px] leading-snug opacity-90">
+                          <summary className="cursor-pointer font-semibold select-none">Lo que leí en la imagen</summary>
+                          <p className="mt-1 whitespace-pre-wrap">{m.lectura}</p>
+                        </details>
+                      )}
+                    </>
                   ) : (
                     <TextoRespuesta texto={m.texto} />
                   )}
@@ -401,7 +470,7 @@ export function Copiloto({
             {enviando && (
               <li className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-md bg-superficie-suave px-3.5 py-2.5 text-sm text-tenue">
-                  <span className="animate-pulse">Consultando…</span>
+                  <span className="animate-pulse">{leyendo ? "Leyendo la imagen…" : "Consultando…"}</span>
                 </div>
               </li>
             )}
@@ -416,34 +485,89 @@ export function Copiloto({
           e.preventDefault();
           enviar(texto);
         }}
-        className="flex items-end gap-2 border-t border-linea px-3 py-3"
+        className="border-t border-linea px-3 py-3"
       >
-        <Textarea
-          autoFocus
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter manda; Shift+Enter hace salto de línea.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              enviar(texto);
+        {adjunto && (
+          <div className="mb-2 flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- data URL local */}
+            <img src={adjunto.miniatura} alt="Imagen por enviar" className="h-16 w-auto rounded-lg border border-linea" />
+            <p className="min-w-0 flex-1 text-[13px] leading-snug text-medio">
+              Captura lista. Di qué hacer con ella (o mándala sola y te digo qué leí).
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setAdjunto(null)}
+              aria-label="Quitar imagen"
+              disabled={enviando}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          {/* Adjuntar imagen: en el teléfono abre cámara o carrete; en escritorio, el selector de archivos. */}
+          <input
+            ref={archivoRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => adjuntar(e.target.files?.[0])}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            aria-label="Adjuntar imagen"
+            title="Adjuntar una captura (por ejemplo, el pedido que llegó por WhatsApp)"
+            disabled={bloqueado || preparando}
+            onClick={() => archivoRef.current?.click()}
+            className="size-11 shrink-0 rounded-xl"
+          >
+            <ImagePlus className={cn("size-5", preparando && "animate-pulse")} />
+          </Button>
+          <Textarea
+            autoFocus
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter manda; Shift+Enter hace salto de línea.
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                enviar(texto);
+              }
+            }}
+            onPaste={(e) => {
+              // Pegar una captura desde el portapapeles (escritorio).
+              const archivo = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+              if (archivo) {
+                e.preventDefault();
+                void adjuntar(archivo);
+              }
+            }}
+            placeholder={
+              pendiente
+                ? "Confirma o cancela la acción para continuar"
+                : adjunto
+                  ? "«Cotízale», «hazle la renta»…"
+                  : "Pregunta algo de tu negocio…"
             }
-          }}
-          placeholder={pendiente ? "Confirma o cancela la acción para continuar" : "Pregunta algo de tu negocio…"}
-          rows={1}
-          maxLength={2000}
-          disabled={bloqueado}
-          className="max-h-32 min-h-11 resize-none rounded-xl py-2.5 text-[15px] md:text-[15px]"
-        />
-        <Button
-          type="submit"
-          size="icon-lg"
-          aria-label="Enviar"
-          disabled={bloqueado || !texto.trim()}
-          className="size-11 shrink-0 rounded-xl"
-        >
-          <ArrowUp className="size-5" />
-        </Button>
+            rows={1}
+            maxLength={2000}
+            disabled={bloqueado}
+            className="max-h-32 min-h-11 resize-none rounded-xl py-2.5 text-[15px] md:text-[15px]"
+          />
+          <Button
+            type="submit"
+            size="icon-lg"
+            aria-label="Enviar"
+            disabled={bloqueado || (!texto.trim() && !adjunto)}
+            className="size-11 shrink-0 rounded-xl"
+          >
+            <ArrowUp className="size-5" />
+          </Button>
+        </div>
       </form>
     </section>
   );

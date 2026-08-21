@@ -52,8 +52,21 @@ const argsRenta = z.strictObject({
     )
     .min(1)
     .max(4),
-  direccion: z.string().trim().min(5).max(200).optional().describe("Dirección de entrega tal cual la dijo la persona (calle, número, colonia). Obligatoria si CONFIRMADA."),
-  ventanaEntrega: z.string().trim().max(60).optional().describe("Horario de entrega, p. ej. '11:00 a 1:00 PM'."),
+  direccion: z
+    .string()
+    .trim()
+    .min(5)
+    .max(200)
+    .optional()
+    .describe(
+      "Dirección de entrega tal cual la dijo la persona o venía en la captura (calle, número, colonia). Si la dieron, mándala SIEMPRE —también en una COTIZADA: con ella se calcula el cargo de domicilio—; solo se omite si nadie la dijo. Obligatoria si CONFIRMADA.",
+    ),
+  ventanaEntrega: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .describe("Horario de entrega tal cual lo dijo la persona ('a las 11 de la mañana', '4 a 6 PM'); no lo completes ni le inventes hora de fin."),
   lugar: z.string().trim().max(40).optional().describe("Tipo de lugar: Casa, Escuela, Salón…"),
   anticipo: z
     .strictObject({ monto: z.number().int().positive().max(1_000_000), metodo: z.enum(METODO) })

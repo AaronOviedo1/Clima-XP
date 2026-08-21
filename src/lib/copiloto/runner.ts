@@ -8,6 +8,7 @@ import { AccionNoPermitida, type PropuestaCliente } from "./accion";
 import { accionesHabilitadas } from "./flag";
 import { accionesRecientes, prepararPropuesta } from "./propuestas";
 import { seccionAccionesRecientes, seccionFechas, systemPrompt } from "./prompt";
+import { contenidoUsuario, imagenSchema, leerImagen, MAX_LECTURA } from "./imagen";
 import {
   clienteAnthropic,
   MAX_REINTENTOS_NUMEROS,
@@ -20,17 +21,29 @@ import {
 // texto de usuario y asistente; los resultados de tools de turnos anteriores
 // NO se reenvían: cada dato se vuelve a consultar en el turno en que se cita
 // (regla 1 del system prompt), así nunca se responde con números viejos.
-export const mensajeChatSchema = z.strictObject({
-  rol: z.enum(["usuario", "asistente"]),
-  texto: z.string().trim().min(1).max(2000),
-});
+// Una imagen (la captura del pedido) solo viaja en el último mensaje; en los
+// turnos siguientes el widget manda en su lugar la `lectura` que le devolvió
+// el servidor, así el historial sigue siendo texto y la imagen no se vuelve a
+// cobrar en cada turno.
+export const mensajeChatSchema = z
+  .strictObject({
+    rol: z.enum(["usuario", "asistente"]),
+    texto: z.string().trim().max(2000),
+    imagen: imagenSchema.optional(),
+    lectura: z.string().trim().min(1).max(MAX_LECTURA).optional(),
+  })
+  .refine((m) => m.texto.length > 0 || m.imagen || m.lectura, "El mensaje no puede ir vacío.");
 export type MensajeChat = z.infer<typeof mensajeChatSchema>;
 
 export const mensajesSchema = z
   .array(mensajeChatSchema)
   .min(1)
   .max(20)
-  .refine((m) => m.at(-1)?.rol === "usuario", "El último mensaje debe ser del usuario.");
+  .refine((m) => m.at(-1)?.rol === "usuario", "El último mensaje debe ser del usuario.")
+  .refine(
+    (m) => m.every((x, i) => !x.imagen || (i === m.length - 1 && x.rol === "usuario")),
+    "Solo el último mensaje (de la persona) puede traer imagen.",
+  );
 
 export type ResultadoRunner = {
   respuesta: string;
@@ -39,6 +52,7 @@ export type ResultadoRunner = {
   tokensSalida: number;
   error?: string; // fallo parcial que no impidió responder (tool caída, tope de rondas, números sin respaldo…)
   propuesta?: PropuestaCliente; // la acción propuesta en este turno (pendiente de que la persona confirme)
+  lectura?: string; // el texto leído de la imagen adjunta (el widget lo guarda y lo reenvía en lugar de la imagen)
 };
 
 /**
@@ -78,7 +92,7 @@ function aMessageParams(mensajes: MensajeChat[]): Anthropic.MessageParam[] {
   const desde = mensajes.findIndex((m) => m.rol === "usuario");
   return mensajes.slice(desde).map((m) => ({
     role: m.rol === "usuario" ? "user" : "assistant",
-    content: m.texto,
+    content: m.rol === "usuario" ? contenidoUsuario(m) : m.texto,
   }));
 }
 
@@ -97,6 +111,9 @@ const RE_NUMERO = /\d+(?:[.,]\d+)*/g;
 // revisarla: el modelo los parte con espacios ("662 228 8418") y no es lo que
 // se quiere vigilar.
 const RE_SECUENCIA_LARGA = /\+?\d[\d .-]{8,}\d/g;
+// Las horas tampoco: "11:00" partía en "00" → 0, que nunca tiene respaldo
+// (la captura decía "a las 11 de la mañana" y el modelo lo escribió con minutos).
+const RE_HORA = /\b\d{1,2}:\d{2}\b/g;
 
 export function numerosEn(texto: string): Set<string> {
   const out = new Set<string>();
@@ -127,7 +144,7 @@ export function numerosEnPalabras(texto: string): Set<string> {
 }
 
 export function numerosSinRespaldo(respuesta: string, permitidos: Set<string>): string[] {
-  const limpia = respuesta.replace(RE_SECUENCIA_LARGA, " ");
+  const limpia = respuesta.replace(RE_SECUENCIA_LARGA, " ").replace(RE_HORA, " ");
   return [...numerosEn(limpia)].filter((n) => !permitidos.has(n));
 }
 
@@ -242,32 +259,51 @@ export async function responderPregunta(
   // Lo ya ejecutado desde el chat va en el prompt (null = acciones apagadas,
   // prompt de solo lectura).
   const recientes = accionesHabilitadas() ? await accionesRecientes(ctx.userId) : null;
-  const system = systemPrompt(ctx, recientes);
-  const historial = aMessageParams(mensajes);
+  // La regla de imágenes del prompt depende de si este rol puede proponer una
+  // renta; lo dice el registro, no el prompt.
+  const puedeCrearRenta = accionesParaRol(ctx.rol).some((a) => a.nombre === "proponer_renta");
+  const system = systemPrompt(ctx, recientes, puedeCrearRenta);
   const toolsLlamadas: string[] = [];
   const errores: string[] = [];
   let tokensEntrada = 0;
   let tokensSalida = 0;
-
-  // Números con respaldo: la pregunta del usuario, las fechas del prompt, las
-  // acciones recientes y, a medida que lleguen, los resultados de las tools
-  // (también sus mensajes de error: "el monto $800 supera el saldo $500" tiene
-  // que poder explicarse sin caer en el control).
-  const turno: TurnoRunner = {
-    permitidos: new Set([
-      ...numerosEn(
-        [
-          mensajes.filter((m) => m.rol === "usuario").map((m) => m.texto).join(" "),
-          seccionFechas(ctx.hoy),
-          recientes ? seccionAccionesRecientes(recientes) : "",
-        ].join(" "),
-      ),
-      ...numerosEnPalabras(mensajes.filter((m) => m.rol === "usuario").map((m) => m.texto).join(" ")),
-    ]),
-    propuesta: null,
-  };
+  let lectura: string | undefined;
 
   try {
+    // Imagen adjunta: primero se lee (un paso aparte, con el mismo modelo) y la
+    // lectura entra al mensaje como texto de la persona. El modelo de la
+    // conversación no ve la imagen; ve lo que dice.
+    const ultimo = mensajes.at(-1)!;
+    if (ultimo.imagen && !ultimo.lectura) {
+      const l = await leerImagen(cliente, ultimo.imagen);
+      tokensEntrada += l.tokensEntrada;
+      tokensSalida += l.tokensSalida;
+      toolsLlamadas.push("leer_imagen");
+      lectura = l.texto;
+      mensajes = [...mensajes.slice(0, -1), { ...ultimo, imagen: undefined, lectura }];
+    }
+
+    const historial = aMessageParams(mensajes);
+    const textoPersona = mensajes
+      .filter((m) => m.rol === "usuario")
+      .map((m) => contenidoUsuario(m))
+      .join(" ");
+
+    // Números con respaldo: lo que dijo la persona (incluida la lectura de su
+    // imagen), las fechas del prompt, las acciones recientes y, a medida que
+    // lleguen, los resultados de las tools (también sus mensajes de error: "el
+    // monto $800 supera el saldo $500" tiene que poder explicarse sin caer en
+    // el control).
+    const turno: TurnoRunner = {
+      permitidos: new Set([
+        ...numerosEn(
+          [textoPersona, seccionFechas(ctx.hoy), recientes ? seccionAccionesRecientes(recientes) : ""].join(" "),
+        ),
+        ...numerosEnPalabras(textoPersona),
+      ]),
+      propuesta: null,
+    };
+
     let respuesta: Anthropic.Message | null = null;
     let rondasTools = 0;
     let reintentosNumeros = 0;
@@ -345,6 +381,7 @@ export async function responderPregunta(
       tokensEntrada,
       tokensSalida,
       ...(turno.propuesta ? { propuesta: turno.propuesta } : {}),
+      ...(lectura ? { lectura } : {}),
     };
     // Si hubo propuesta, la tarjeta ya trae todo: ante una redacción fallida
     // (vacía, cortada o con cifras sin respaldo) se entrega un texto fijo en

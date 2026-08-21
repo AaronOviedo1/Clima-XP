@@ -134,7 +134,10 @@ export async function POST(req: Request) {
     // --- Modo conversación ---
     if ("mensajes" in cuerpo.data) {
       const mensajes = cuerpo.data.mensajes;
-      pregunta = mensajes.at(-1)!.texto;
+      // Con imagen adjunta la bitácora guarda el texto y, abajo, lo que se leyó
+      // de ella (nunca la imagen): es la única forma de revisar después qué
+      // entendió el copiloto de una captura.
+      pregunta = mensajes.at(-1)!.texto || "(imagen adjunta)";
       // Con una propuesta viva no se consulta al modelo: primero se decide.
       // Cubre también el widget que perdió la tarjeta (otra pestaña, storage).
       if (accionesHabilitadas()) {
@@ -150,6 +153,7 @@ export async function POST(req: Request) {
       }
       try {
         const r = await responderPregunta(ctx, mensajes);
+        if (r.lectura) pregunta = `${pregunta}\n\n[Imagen leída]\n${r.lectura}`;
         return await responder(
           200,
           {
@@ -157,6 +161,7 @@ export async function POST(req: Request) {
             toolsLlamadas: r.toolsLlamadas,
             hoy: ctx.hoy,
             ...(r.propuesta ? { propuesta: r.propuesta } : {}),
+            ...(r.lectura ? { lectura: r.lectura } : {}),
           },
           r.toolsLlamadas,
           r.error,
