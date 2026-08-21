@@ -78,9 +78,14 @@ export function TopBar({
   }, []);
 
   function aplicar(q: string) {
-    const destino = q.trim()
-      ? `${base}?q=${encodeURIComponent(q.trim())}`
-      : base;
+    // Buscando dentro de la sección en la que ya estamos conservamos el resto
+    // de la URL (el ?orden= de Clientes, p. ej.); llegando desde otra pantalla
+    // se navega limpio.
+    const sp = new URLSearchParams(yaEnBase ? searchParams : undefined);
+    if (q.trim()) sp.set("q", q.trim());
+    else sp.delete("q");
+    const s = sp.toString();
+    const destino = s ? `${base}?${s}` : base;
     // En la misma sección reemplazamos (sin ensuciar el historial ni saltar el
     // scroll); desde otra pantalla navegamos una vez.
     if (yaEnBase) router.replace(destino, { scroll: false });
