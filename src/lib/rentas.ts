@@ -245,6 +245,14 @@ export function apartaInventario(estado: string): boolean {
 // es dinero que se deba, y una cancelada ya no se cobra.
 export const ESTADOS_SIN_COBRO: EstadoRentaStr[] = ["COTIZADA", "CANCELADA"];
 
+// ¿La renta sí se rentó? Una COTIZADA es nada más un precio que se dio y una
+// CANCELADA se cayó, así que ninguna cuenta como renta del cliente (el número y
+// el orden "Más rentas" del directorio). Coincide hoy con ESTADOS_SIN_COBRO,
+// pero responde otra pregunta: aquélla es sobre el saldo.
+export function seRento(estado: string): boolean {
+  return estado !== "COTIZADA" && estado !== "CANCELADA";
+}
+
 // Estados que cuentan como "ya atendida" para las secciones del dashboard:
 // una entrega de hoy ya hecha (o recolección) sigue visible, marcada como lista.
 export const ENTREGA_HECHA: EstadoRentaStr[] = ["ENTREGADA", "RECOGIDA", "CONCLUIDA"];
