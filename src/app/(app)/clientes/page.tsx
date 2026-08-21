@@ -13,7 +13,7 @@ import {
 } from "@/components/desktop/seccion";
 import { EdicionMasivaClientesDialog } from "@/components/clientes-masivo";
 import { ClientesOrden } from "@/components/clientes-orden";
-import { tiposDeEquipoDeRentas } from "@/lib/rentas";
+import { tiposDeEquipoDeRentas, seRento } from "@/lib/rentas";
 import { GRID_CLIENTES } from "@/lib/grids";
 import { cn } from "@/lib/utils";
 
@@ -71,24 +71,33 @@ export default async function ClientesPage({
       _count: { select: { rentas: true } },
       rentas: {
         select: {
+          estado: true,
           unidades: {
             select: { unidad: { select: { modelo: { select: { tipo: true } } } } },
           },
         },
       },
     },
-    orderBy:
-      orden === "rentas"
-        ? // El desempate por nombre no sobra: cientos de clientes empatan en el
-          // mismo número de rentas (0 los que nunca rentaron) y sin él Postgres
-          // los devuelve en el orden que quiera, así que la lista se reacomoda
-          // sola entre cargas.
-          [{ rentas: { _count: "desc" } }, { nombre: "asc" }]
-        : { nombre: "asc" },
+    orderBy: { nombre: "asc" },
   });
 
-  // DTO plano para la selección múltiple (el pop-up es client component).
-  const clientesMasivo = clientes.map((c) => ({
+  // El directorio cuenta solo las rentas que sí se rentaron: las COTIZADAS y las
+  // CANCELADAS no. Se cuenta aquí y no con `_count` porque Prisma no filtra el
+  // conteo con el que ordena (`rentas: { _count: "desc" }` no acepta `where`), y
+  // las rentas ya vienen en la query para los distintivos de equipo.
+  const lista = clientes.map((c) => ({
+    ...c,
+    rentasHechas: c.rentas.filter((r) => seRento(r.estado)).length,
+  }));
+  // El sort de JS es estable, así que el desempate sigue siendo el nombre con el
+  // que Postgres los devolvió; sin él Postgres reacomoda entre cargas a los
+  // cientos de clientes que empatan en el mismo número (0 los que nunca rentaron).
+  if (orden === "rentas") lista.sort((a, b) => b.rentasHechas - a.rentasHechas);
+
+  // DTO plano para la selección múltiple (el pop-up es client component). Aquí
+  // el conteo sí es el total (`_count`): con él decide qué clientes se pueden
+  // borrar, y una renta cancelada sigue existiendo en la BD y lo impide.
+  const clientesMasivo = lista.map((c) => ({
     id: c.id,
     nombre: c.nombre,
     telefono: c.telefono,
@@ -129,7 +138,7 @@ export default async function ClientesPage({
         <EdicionMasivaClientesDialog clientes={clientesMasivo} />
       </div>
 
-      {clientes.length === 0 ? (
+      {lista.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
           {busqueda ? "Sin resultados." : "Aún no hay clientes."}
         </p>
@@ -148,7 +157,7 @@ export default async function ClientesPage({
               <span>Origen</span>
               <span className="text-right">Rentas</span>
             </div>
-            {clientes.map((c, i) => {
+            {lista.map((c, i) => {
               const [bg, fg] = AV_PALETTE[i % AV_PALETTE.length];
               const tipos = tiposDeEquipoDeRentas(c.rentas);
               return (
@@ -179,7 +188,7 @@ export default async function ClientesPage({
                     <DistintivoCanal canal={c.canalOrigen} />
                   </span>
                   <span className="text-right text-sm font-extrabold">
-                    {c._count.rentas}
+                    {c.rentasHechas}
                   </span>
                 </Link>
               );
@@ -188,10 +197,10 @@ export default async function ClientesPage({
 
           {/* Lista (móvil): una sola tarjeta con filas estilo iOS. */}
           <Card className="gap-0 overflow-hidden py-0 lg:hidden">
-            {clientes.map((c, i) => {
+            {lista.map((c, i) => {
               const [bg, fg] = AV_PALETTE[i % AV_PALETTE.length];
               const wa = linkWhatsApp(c.telefono);
-              const nRentas = c._count.rentas;
+              const nRentas = c.rentasHechas;
               return (
                 <div
                   key={c.id}
