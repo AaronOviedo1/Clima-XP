@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, MessageCircle, Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { rentaListSelect } from "@/lib/rentas";
-import { formatoTelefono, paraWhatsApp } from "@/lib/telefono";
+import { formatoTelefono, linkWhatsApp } from "@/lib/telefono";
 import { Button } from "@/components/ui/button";
 import { DistintivoCanal } from "@/components/distintivo-canal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ export default async function ClienteDetallePage({
   });
   if (!cliente) notFound();
 
-  const wa = paraWhatsApp(cliente.telefono);
+  const wa = linkWhatsApp(cliente.telefono);
 
   return (
     <div className="space-y-4">
@@ -48,9 +48,25 @@ export default async function ClienteDetallePage({
 
       <Card>
         <CardContent className="space-y-2 py-4 text-sm">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Teléfono</span>
-            <span>{formatoTelefono(cliente.telefono) || "—"}</span>
+            {/* El botón va junto al número, igual que en la lista de clientes. */}
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate tabular-nums">
+                {formatoTelefono(cliente.telefono) || "—"}
+              </span>
+              {wa && (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`WhatsApp a ${cliente.nombre}`}
+                  className="-my-1 flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-emerald-600 active:scale-90 dark:text-emerald-500"
+                >
+                  <MessageCircle className="size-[17px]" />
+                </a>
+              )}
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Canal</span>
@@ -61,17 +77,6 @@ export default async function ClienteDetallePage({
               <p className="text-muted-foreground">Notas</p>
               <p className="whitespace-pre-wrap">{cliente.notas}</p>
             </div>
-          )}
-          {wa && (
-            <Button asChild variant="outline" className="mt-2 w-full">
-              <a
-                href={`https://wa.me/${wa}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <MessageCircle className="size-4" /> WhatsApp
-              </a>
-            </Button>
           )}
         </CardContent>
       </Card>
