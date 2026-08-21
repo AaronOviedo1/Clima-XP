@@ -104,10 +104,14 @@ export function Copiloto({
   const [leyendo, setLeyendo] = useState(false); // el turno en vuelo lleva imagen
   const [adjunto, setAdjunto] = useState<ImagenPreparada | null>(null);
   const [preparando, setPreparando] = useState(false);
+  const [arrastrando, setArrastrando] = useState(false); // hay un archivo encima del panel
   const [decidiendo, setDecidiendo] = useState<string | null>(null);
   const [minutosRestantes, setMinutosRestantes] = useState<number | null>(null);
   const finRef = useRef<HTMLDivElement>(null);
   const archivoRef = useRef<HTMLInputElement>(null);
+  // dragenter/dragleave se disparan por cada hijo que se cruza; se cuentan
+  // para apagar la capa solo cuando el archivo sale del panel de verdad.
+  const arrastreRef = useRef(0);
 
   // La propuesta viva (si la hay) bloquea el chat hasta que se decida.
   const pendiente = mensajes.find((m) => m.propuesta?.estado === "PROPUESTA")?.propuesta ?? null;
@@ -327,11 +331,26 @@ export function Copiloto({
     setAdjunto(null);
   }
 
+  // Arrastrar un archivo (escritorio): solo reacciona a arrastres de archivos,
+  // no a texto seleccionado ni a elementos de la página.
+  const traeArchivos = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files");
+
   if (!abierto) {
     return (
       <button
         type="button"
         onClick={() => setAbierto(true)}
+        // Arrastrar una imagen hasta el botón abre el panel; el archivo se
+        // suelta ya sobre la conversación.
+        onDragEnter={(e) => {
+          if (traeArchivos(e)) {
+            e.preventDefault();
+            setAbierto(true);
+          }
+        }}
+        onDragOver={(e) => {
+          if (traeArchivos(e)) e.preventDefault();
+        }}
         aria-label="Abrir copiloto"
         className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+78px)] z-40 flex size-13 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_10px_24px_-8px_var(--primary)] transition-transform active:scale-90 lg:right-6 lg:bottom-6"
       >
@@ -349,6 +368,35 @@ export function Copiloto({
       onKeyDown={(e) => {
         if (e.key === "Escape") setAbierto(false);
       }}
+      // Soltar una imagen sobre cualquier parte del panel la adjunta (como el
+      // botón o pegarla). preventDefault en dragover es lo que permite el drop;
+      // sin él el navegador abre la imagen en la pestaña.
+      onDragEnter={(e) => {
+        if (!traeArchivos(e)) return;
+        e.preventDefault();
+        arrastreRef.current++;
+        if (!bloqueado) setArrastrando(true);
+      }}
+      onDragOver={(e) => {
+        if (!traeArchivos(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = bloqueado ? "none" : "copy";
+      }}
+      onDragLeave={(e) => {
+        if (!traeArchivos(e)) return;
+        arrastreRef.current = Math.max(0, arrastreRef.current - 1);
+        if (arrastreRef.current === 0) setArrastrando(false);
+      }}
+      onDrop={(e) => {
+        if (!traeArchivos(e)) return;
+        e.preventDefault();
+        arrastreRef.current = 0;
+        setArrastrando(false);
+        if (bloqueado) return;
+        const archivo = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/"));
+        if (archivo) void adjuntar(archivo);
+        else toast.error("Solo se pueden adjuntar imágenes.");
+      }}
       className={cn(
         "fixed z-50 flex flex-col bg-card text-card-foreground",
         // Móvil: toda la pantalla, respetando las muescas.
@@ -357,6 +405,20 @@ export function Copiloto({
         "lg:inset-auto lg:right-6 lg:bottom-6 lg:h-[min(640px,calc(100dvh-3rem))] lg:w-[400px] lg:rounded-2xl lg:border lg:border-linea lg:p-0 lg:shadow-[0_24px_60px_-20px_rgba(0,0,0,.35)]",
       )}
     >
+      {arrastrando && (
+        // Capa de "suelta aquí". Sin eventos de puntero: si los recibiera, al
+        // aparecer bajo el cursor dispararía un dragleave del panel y parpadearía.
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-primary/10 p-6 lg:rounded-2xl"
+        >
+          <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-card px-6 py-5 text-center shadow-lg">
+            <ImagePlus className="size-7 text-primary" aria-hidden />
+            <p className="text-[15px] font-bold">Suelta la captura aquí</p>
+            <p className="text-[12.5px] text-tenue">Se adjunta a tu siguiente mensaje</p>
+          </div>
+        </div>
+      )}
       {/* Encabezado */}
       <header className="flex items-center gap-3 border-b border-linea px-4 py-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chip-azul text-chip-azul-fg">
@@ -520,7 +582,7 @@ export function Copiloto({
             variant="outline"
             size="icon-lg"
             aria-label="Adjuntar imagen"
-            title="Adjuntar una captura (por ejemplo, el pedido que llegó por WhatsApp)"
+            title="Adjuntar una captura (por ejemplo, el pedido que llegó por WhatsApp). También puedes arrastrarla o pegarla aquí."
             disabled={bloqueado || preparando}
             onClick={() => archivoRef.current?.click()}
             className="size-11 shrink-0 rounded-xl"

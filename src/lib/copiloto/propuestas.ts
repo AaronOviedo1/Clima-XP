@@ -274,6 +274,9 @@ export type AccionReciente = {
   estado: EstadoPropuesta;
   resultado: string | null;
   decididoEn: Date;
+  // "/rentas/<id>" de lo que se creó o tocó: es como el modelo sabe a qué renta
+  // se refiere "te faltó el domicilio" justo después de crearla desde el chat.
+  enlace: string | null;
 };
 
 // Lo que el usuario ya ejecutó desde el chat hace poco: va al system prompt
@@ -296,5 +299,6 @@ export async function accionesRecientes(userId: string, horas = 2): Promise<Acci
     estado: f.estado as EstadoPropuesta,
     resultado: f.resultado,
     decididoEn: f.decididoEn ?? new Date(0),
+    enlace: (f.resumen as ResumenAccion).enlace ?? null,
   }));
 }

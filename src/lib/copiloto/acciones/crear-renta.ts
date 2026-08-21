@@ -5,6 +5,7 @@ import { definirAccion, type LineaResumen } from "../accion";
 import { ArgsInvalidos } from "../tool";
 import { fechaArg, recortar } from "../comunes";
 import { resolverCliente } from "./clientes-comun";
+import { agruparPedido, cargarCatalogo, normalizar, type ModeloCat } from "./modelos-comun";
 import { scopeNegocio } from "../contexto";
 import { unidadesDisponibles, unidadesNoDisponibles } from "@/lib/disponibilidad";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
@@ -90,46 +91,6 @@ const ejecucionSchema = z.object({
 });
 type Ejecucion = z.infer<typeof ejecucionSchema>;
 
-const normalizar = (s: string) =>
-  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-
-const PALABRAS_TIPO: Record<string, "AEROCOOLER" | "CALENTON"> = {
-  aerocooler: "AEROCOOLER", aerocoolers: "AEROCOOLER", cooler: "AEROCOOLER", coolers: "AEROCOOLER",
-  enfriador: "AEROCOOLER", enfriadores: "AEROCOOLER",
-  calenton: "CALENTON", calentones: "CALENTON", calefactor: "CALENTON", calefactores: "CALENTON",
-  calentador: "CALENTON", calentadores: "CALENTON",
-};
-
-type ModeloCat = { id: string; nombre: string; tipo: "AEROCOOLER" | "CALENTON"; precioDia: number; precioDia3Mas: number | null; unidades: number };
-
-// Nombre de modelo o tipo → un modelo del catálogo, o error que explica qué hay.
-function elegirModelo(texto: string, catalogo: ModeloCat[]): ModeloCat {
-  const q = normalizar(texto);
-  const conUnidades = catalogo.filter((m) => m.unidades > 0);
-  const nombres = conUnidades.map((m) => m.nombre).join(", ");
-  const porTipo = PALABRAS_TIPO[q];
-  if (porTipo) {
-    const delTipo = conUnidades.filter((m) => m.tipo === porTipo);
-    if (delTipo.length === 1) return delTipo[0];
-    throw new ArgsInvalidos(
-      `"${texto}" es ambiguo: hay ${delTipo.length} modelos de ese tipo (${delTipo.map((m) => m.nombre).join(", ")}). Pregunta cuál.`,
-    );
-  }
-  const exactos = catalogo.filter((m) => normalizar(m.nombre) === q);
-  const parciales = exactos.length ? exactos : catalogo.filter((m) => normalizar(m.nombre).includes(q) || q.includes(normalizar(m.nombre)));
-  if (parciales.length === 0) {
-    throw new ArgsInvalidos(`No existe el modelo "${texto}". Los modelos rentables son: ${nombres}.`);
-  }
-  if (parciales.length > 1) {
-    throw new ArgsInvalidos(`"${texto}" coincide con varios modelos (${parciales.map((m) => m.nombre).join(", ")}). Pregunta cuál.`);
-  }
-  const m = parciales[0];
-  if (m.unidades === 0) {
-    throw new ArgsInvalidos(`${m.nombre} todavía no tiene unidades para rentar. Los modelos rentables son: ${nombres}.`);
-  }
-  return m;
-}
-
 /**
  * "Cotiza 2 Eco-Fresco del sábado al lunes para Juan" / "hazle la renta a un
  * cliente nuevo…". Resuelve cliente, modelos, unidades libres (las primeras N
@@ -169,17 +130,7 @@ export const proponerRenta = definirAccion({
     }
 
     // 3) Modelos y cantidades (mismo modelo repetido se suma).
-    const catalogo: ModeloCat[] = (
-      await prisma.modeloEquipo.findMany({
-        select: { id: true, nombre: true, tipo: true, precioDia: true, precioDia3Mas: true, _count: { select: { unidades: true } } },
-      })
-    ).map((m) => ({ id: m.id, nombre: m.nombre, tipo: m.tipo, precioDia: m.precioDia, precioDia3Mas: m.precioDia3Mas, unidades: m._count.unidades }));
-    const pedido = new Map<string, { modelo: ModeloCat; cantidad: number }>();
-    for (const e of a.equipos) {
-      const m = elegirModelo(e.modelo, catalogo);
-      const prev = pedido.get(m.id);
-      pedido.set(m.id, { modelo: m, cantidad: (prev?.cantidad ?? 0) + e.cantidad });
-    }
+    const pedido = agruparPedido(a.equipos, await cargarCatalogo());
 
     // 4) Unidades libres en esas fechas: las primeras N de cada modelo (como el alta).
     const libres = await unidadesDisponibles(inicio, fin);

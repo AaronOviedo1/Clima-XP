@@ -19,6 +19,7 @@ import { proponerConfirmarCotizacion } from "./acciones/confirmar-cotizacion";
 import { proponerReporteFalla } from "./acciones/reportar-falla";
 import { proponerResolverMantenimiento } from "./acciones/resolver-mantenimiento";
 import { proponerRenta } from "./acciones/crear-renta";
+import { proponerEditarRenta } from "./acciones/editar-renta";
 
 // Todas las tools de lectura del copiloto. El orden es el que verá el modelo.
 export const TOOLS: readonly Tool[] = [
@@ -43,6 +44,7 @@ export const ACCIONES: readonly Accion[] = [
   proponerReporteFalla,
   proponerResolverMantenimiento,
   proponerRenta,
+  proponerEditarRenta,
 ];
 
 // Las tools de un rol: las demás no existen para ese usuario (ni se le
