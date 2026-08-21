@@ -2,9 +2,12 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { ContextoCopiloto } from "./contexto";
-import { buscarTool, toolsParaRol } from "./registro";
+import { accionesParaRol, buscarAccion, buscarTool, toolsParaRol } from "./registro";
 import { ArgsInvalidos } from "./tool";
-import { seccionFechas, systemPrompt } from "./prompt";
+import { AccionNoPermitida, type PropuestaCliente } from "./accion";
+import { accionesHabilitadas } from "./flag";
+import { accionesRecientes, prepararPropuesta } from "./propuestas";
+import { seccionAccionesRecientes, seccionFechas, systemPrompt } from "./prompt";
 import {
   clienteAnthropic,
   MAX_REINTENTOS_NUMEROS,
@@ -35,6 +38,7 @@ export type ResultadoRunner = {
   tokensEntrada: number; // input + caché leída + caché escrita, sumados en todas las rondas
   tokensSalida: number;
   error?: string; // fallo parcial que no impidió responder (tool caída, tope de rondas, números sin respaldo…)
+  propuesta?: PropuestaCliente; // la acción propuesta en este turno (pendiente de que la persona confirme)
 };
 
 /**
@@ -55,10 +59,10 @@ export class ErrorCopiloto extends Error {
 export const RESPUESTA_SIN_CALCULAR =
   "No puedo responder eso sin calcular números por mi cuenta, y no me está permitido: solo puedo citar cifras tal cual vienen del sistema. Pregúntame por un periodo o dato concreto (por ejemplo «¿cuánto facturé en 2026?» o «¿cuánto me debe X?»).";
 
-// Las tools del rol en el formato del API. `$schema` sobra; lo demás es el
-// JSON Schema que ya sirve el GET de /api/copiloto.
+// Las tools del rol (lectura + acciones, si están prendidas) en el formato del
+// API. `$schema` sobra; lo demás es el JSON Schema que ya sirve el GET.
 function toolsParaModelo(ctx: ContextoCopiloto): Anthropic.Tool[] {
-  return toolsParaRol(ctx.rol).map((t) => {
+  return [...toolsParaRol(ctx.rol), ...accionesParaRol(ctx.rol)].map((t) => {
     const schema = z.toJSONSchema(t.args) as Record<string, unknown>;
     delete schema.$schema;
     return {
@@ -103,22 +107,48 @@ export function numerosEn(texto: string): Set<string> {
   return out;
 }
 
+// "dos calentones", "un aerocooler", "quince días": la persona dice los números
+// con palabras y aun así respaldan los args de una acción (cantidades, días).
+const PALABRAS_NUMERO: Record<string, number> = {
+  un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8,
+  nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16,
+  diecisiete: 17, dieciocho: 18, diecinueve: 19, veinte: 20, treinta: 30, cuarenta: 40,
+  cincuenta: 50, sesenta: 60, cien: 100, doscientos: 200, quinientos: 500, mil: 1000,
+};
+
+export function numerosEnPalabras(texto: string): Set<string> {
+  const out = new Set<string>();
+  const limpio = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  for (const palabra of limpio.split(/[^a-z]+/)) {
+    const n = PALABRAS_NUMERO[palabra];
+    if (n !== undefined) out.add(String(n));
+  }
+  return out;
+}
+
 export function numerosSinRespaldo(respuesta: string, permitidos: Set<string>): string[] {
   const limpia = respuesta.replace(RE_SECUENCIA_LARGA, " ");
   return [...numerosEn(limpia)].filter((n) => !permitidos.has(n));
 }
 
 function mensajeCorreccion(faltantes: string[]): string {
-  return `[Control automático] Tu respuesta anterior incluye números que NO vienen de las tools de este turno: ${faltantes.join(", ")}. No está permitido sumar, promediar, restar ni derivar cifras. Vuelve a responder usando únicamente números devueltos por las tools (puedes llamarlas otra vez si hace falta); si lo que piden requiere calcular, di que no puedes calcularlo y ofrece los datos tal cual vienen. Responde directamente a la pregunta original, sin mencionar esta corrección ni disculparte.`;
+  return `[Control automático] Tu respuesta anterior incluye números que NO vienen de las tools de este turno: ${faltantes.join(", ")}. No está permitido sumar, promediar, restar ni derivar cifras. Vuelve a responder usando únicamente números devueltos por las tools (puedes llamarlas otra vez si hace falta); si lo que piden requiere calcular, di que no puedes calcularlo y ofrece los datos tal cual vienen. Si tu respuesta era una pregunta de aclaración, vuelve a hacerla sin esas cifras. Responde directamente a la pregunta original, sin mencionar esta corrección ni disculparte.`;
 }
 
-// Ejecuta una tool pedida por el modelo y devuelve el tool_result. Un arg malo
-// o una tool que no existe para el rol se le regresa como error para que
-// corrija; una excepción de verdad también, pero sin el detalle interno.
+// Estado de un turno: los números con respaldo y la propuesta de acción (una
+// por turno como máximo; la persona decide sobre ella antes de la siguiente).
+type TurnoRunner = { permitidos: Set<string>; propuesta: PropuestaCliente | null };
+
+// Ejecuta una tool pedida por el modelo —o, si es una acción, PREPARA su
+// propuesta sin ejecutar nada— y devuelve el tool_result. Un arg malo, una tool
+// que no existe para el rol o una precondición que no se cumple se le regresan
+// como error para que corrija o lo explique; una excepción de verdad también,
+// pero sin el detalle interno.
 async function ejecutarParaModelo(
   bloque: Anthropic.ToolUseBlock,
   ctx: ContextoCopiloto,
   errores: string[],
+  turno: TurnoRunner,
 ): Promise<Anthropic.ToolResultBlockParam> {
   const resultado = (content: string, is_error = false): Anthropic.ToolResultBlockParam => ({
     type: "tool_result",
@@ -126,6 +156,54 @@ async function ejecutarParaModelo(
     content,
     is_error,
   });
+
+  // --- Acción: se propone, no se ejecuta ---
+  const accion = buscarAccion(bloque.name, ctx.rol);
+  if (accion) {
+    if (turno.propuesta) {
+      return resultado(
+        "Ya hay una acción propuesta en este turno; termina tu respuesta y espera a que la persona la confirme o cancele. La siguiente acción va después.",
+        true,
+      );
+    }
+    const args = accion.args.safeParse(bloque.input ?? {});
+    if (!args.success) {
+      return resultado(`Argumentos inválidos: ${args.error.issues[0]?.message ?? "revisa los argumentos."}`, true);
+    }
+    // Montos, costos y cantidades tienen que venir de la persona o de una tool
+    // de este turno: el modelo no los completa por su cuenta.
+    const inventados = accion
+      .procedencia(args.data)
+      .map((n) => String(n))
+      .filter((n) => !turno.permitidos.has(n));
+    if (inventados.length) {
+      return resultado(
+        `El número ${inventados.join(", ")} no aparece en lo que dijo la persona ni en los resultados de este turno. No supongas montos, costos ni cantidades: pregúntaselos o consúltalos con una tool.`,
+        true,
+      );
+    }
+    try {
+      const p = await prepararPropuesta(accion, args.data, ctx);
+      turno.propuesta = p;
+      return resultado(
+        JSON.stringify({
+          propuesta: { id: p.id, titulo: p.titulo, lineas: p.lineas, expiraEn: p.expiraEn },
+          instruccion:
+            "Propuesta creada. La persona la ve en una tarjeta y decide si la confirma; tú NO la ejecutaste. Di en una frase qué propusiste y que toque Confirmar. No llames más tools en este turno.",
+        }),
+      );
+    } catch (e) {
+      if (e instanceof ArgsInvalidos || e instanceof AccionNoPermitida) {
+        return resultado(`No se puede proponer: ${e.message}`, true);
+      }
+      const detalle = e instanceof Error ? e.message : "error desconocido";
+      errores.push(`${bloque.name}: ${detalle}`);
+      console.error(`[copiloto] la acción ${bloque.name} falló al proponer:`, e);
+      return resultado("La acción falló por un error interno; no insistas con los mismos argumentos.", true);
+    }
+  }
+
+  // --- Tool de lectura ---
   const tool = buscarTool(bloque.name, ctx.rol);
   if (!tool) return resultado(`La tool ${bloque.name} no está disponible para este usuario.`, true);
 
@@ -161,24 +239,42 @@ export async function responderPregunta(
   }
 
   const tools = toolsParaModelo(ctx);
-  const system = systemPrompt(ctx);
+  // Lo ya ejecutado desde el chat va en el prompt (null = acciones apagadas,
+  // prompt de solo lectura).
+  const recientes = accionesHabilitadas() ? await accionesRecientes(ctx.userId) : null;
+  const system = systemPrompt(ctx, recientes);
   const historial = aMessageParams(mensajes);
   const toolsLlamadas: string[] = [];
   const errores: string[] = [];
   let tokensEntrada = 0;
   let tokensSalida = 0;
 
-  // Números con respaldo: la pregunta del usuario, las fechas del prompt y, a
-  // medida que lleguen, los resultados de las tools.
-  const permitidos = numerosEn(
-    mensajes.filter((m) => m.rol === "usuario").map((m) => m.texto).join(" ") + " " + seccionFechas(ctx.hoy),
-  );
+  // Números con respaldo: la pregunta del usuario, las fechas del prompt, las
+  // acciones recientes y, a medida que lleguen, los resultados de las tools
+  // (también sus mensajes de error: "el monto $800 supera el saldo $500" tiene
+  // que poder explicarse sin caer en el control).
+  const turno: TurnoRunner = {
+    permitidos: new Set([
+      ...numerosEn(
+        [
+          mensajes.filter((m) => m.rol === "usuario").map((m) => m.texto).join(" "),
+          seccionFechas(ctx.hoy),
+          recientes ? seccionAccionesRecientes(recientes) : "",
+        ].join(" "),
+      ),
+      ...numerosEnPalabras(mensajes.filter((m) => m.rol === "usuario").map((m) => m.texto).join(" ")),
+    ]),
+    propuesta: null,
+  };
 
   try {
     let respuesta: Anthropic.Message | null = null;
     let rondasTools = 0;
     let reintentosNumeros = 0;
     let sinRespaldo: string[] = [];
+    // Tras una propuesta el modelo solo redacta: sin más tools (pero `tools`
+    // se sigue mandando, el historial ya trae tool_use y el API lo exige).
+    let toolChoice: Anthropic.ToolChoice | undefined;
 
     while (true) {
       respuesta = await cliente.messages.create({
@@ -187,6 +283,7 @@ export async function responderPregunta(
         system,
         tools,
         messages: historial,
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
       });
       tokensEntrada +=
         respuesta.usage.input_tokens +
@@ -201,6 +298,12 @@ export async function responderPregunta(
           respuesta = null;
           break;
         }
+        if (turno.propuesta) {
+          // Con tool_choice none no debería pasar; por si acaso, nada más se ejecuta.
+          errores.push("tool_use después de una propuesta");
+          respuesta = null;
+          break;
+        }
         rondasTools++;
         const pedidas = respuesta.content.filter(
           (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
@@ -211,11 +314,12 @@ export async function responderPregunta(
         const resultados: Anthropic.ToolResultBlockParam[] = [];
         for (const b of pedidas) {
           toolsLlamadas.push(b.name);
-          const r = await ejecutarParaModelo(b, ctx, errores);
-          if (!r.is_error) for (const n of numerosEn(String(r.content))) permitidos.add(n);
+          const r = await ejecutarParaModelo(b, ctx, errores, turno);
+          for (const n of numerosEn(String(r.content))) turno.permitidos.add(n);
           resultados.push(r);
         }
         historial.push({ role: "user", content: resultados });
+        if (turno.propuesta) toolChoice = { type: "none" };
         continue;
       }
 
@@ -224,10 +328,10 @@ export async function responderPregunta(
       // Respuesta final: control numérico. Si trae cifras sin respaldo se le
       // pide reescribir (una vez); si reincide, no se entrega.
       const texto = textoDe(respuesta);
-      const faltantes = numerosSinRespaldo(texto, permitidos);
+      const faltantes = numerosSinRespaldo(texto, turno.permitidos);
       if (faltantes.length && reintentosNumeros < MAX_REINTENTOS_NUMEROS) {
         reintentosNumeros++;
-        errores.push(`reintento por números sin respaldo: ${faltantes.join(",")}`);
+        errores.push(`reintento por números sin respaldo: ${faltantes.join(",")} en «${texto.slice(0, 160)}»`);
         historial.push({ role: "assistant", content: respuesta.content });
         historial.push({ role: "user", content: mensajeCorreccion(faltantes) });
         continue;
@@ -236,23 +340,38 @@ export async function responderPregunta(
       break;
     }
 
-    const base = { toolsLlamadas, tokensEntrada, tokensSalida };
+    const base = {
+      toolsLlamadas,
+      tokensEntrada,
+      tokensSalida,
+      ...(turno.propuesta ? { propuesta: turno.propuesta } : {}),
+    };
+    // Si hubo propuesta, la tarjeta ya trae todo: ante una redacción fallida
+    // (vacía, cortada o con cifras sin respaldo) se entrega un texto fijo en
+    // vez de perder la propuesta.
+    const textoPropuesta = turno.propuesta
+      ? `Te propongo: ${turno.propuesta.titulo}. Revisa la tarjeta y, si está bien, toca Confirmar.`
+      : null;
     if (!respuesta) {
-      return { ...base, respuesta: "No pude completar la consulta; intenta con una pregunta más concreta.", error: errores.join(" | ") };
+      return {
+        ...base,
+        respuesta: textoPropuesta ?? "No pude completar la consulta; intenta con una pregunta más concreta.",
+        error: errores.join(" | "),
+      };
     }
     if (respuesta.stop_reason === "refusal") {
-      return { ...base, respuesta: "No puedo ayudar con esa petición.", error: "refusal" };
+      return { ...base, respuesta: textoPropuesta ?? "No puedo ayudar con esa petición.", error: "refusal" };
     }
     if (sinRespaldo.length) {
       errores.push(`numeros_sin_respaldo: ${sinRespaldo.join(",")}`);
-      return { ...base, respuesta: RESPUESTA_SIN_CALCULAR, error: errores.join(" | ") };
+      return { ...base, respuesta: textoPropuesta ?? RESPUESTA_SIN_CALCULAR, error: errores.join(" | ") };
     }
     const texto = textoDe(respuesta);
     if (respuesta.stop_reason === "max_tokens") errores.push("respuesta cortada por max_tokens");
     if (!texto) errores.push("el modelo no devolvió texto");
     return {
       ...base,
-      respuesta: texto || "No obtuve respuesta; intenta de nuevo.",
+      respuesta: texto || textoPropuesta || "No obtuve respuesta; intenta de nuevo.",
       ...(errores.length ? { error: errores.join(" | ") } : {}),
     };
   } catch (e) {

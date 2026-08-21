@@ -202,7 +202,10 @@ export type EstadoRentaStr = (typeof ESTADOS_RENTA)[number];
 // Transiciones de estado permitidas (compartidas por el server action y la UI).
 export const TRANSICIONES: Record<EstadoRentaStr, EstadoRentaStr[]> = {
   COTIZADA: ["CONFIRMADA", "CANCELADA"],
-  CONFIRMADA: ["EN_RUTA", "CANCELADA"],
+  // ENTREGADA directo desde CONFIRMADA: el repartidor no siempre marca "En
+  // ruta" antes de entregar, y el dashboard ya ofrecía ese botón (fallaba al
+  // ejecutarse porque aquí no estaba permitido).
+  CONFIRMADA: ["EN_RUTA", "ENTREGADA", "CANCELADA"],
   EN_RUTA: ["ENTREGADA", "CANCELADA"],
   ENTREGADA: ["RECOGIDA"],
   // RECOGIDA es terminal: recoger el equipo da por concluida la renta. El estado
@@ -257,3 +260,24 @@ export const ACCION_ESTADO: Record<EstadoRentaStr, string> = {
   CONCLUIDA: "Concluir",
   CANCELADA: "Cancelar",
 };
+
+// Búsqueda libre de rentas (lista /rentas y tool buscar_rentas del copiloto):
+// nombre del cliente, dirección, código de unidad y teléfono por dígitos (se
+// guarda E.164, "+52662…"). `notas` solo para la pantalla: las notas nunca se
+// mandan al modelo, y filtrar por ellas sería un oráculo para sondear qué
+// dicen ("¿hay alguna renta con código 3112?").
+export function condicionBusquedaRentas(
+  q: string,
+  opts: { notas: boolean },
+): Prisma.RentaWhereInput {
+  const digitos = q.replace(/\D/g, "");
+  return {
+    OR: [
+      { cliente: { nombre: { contains: q, mode: "insensitive" } } },
+      { direccion: { contains: q, mode: "insensitive" } },
+      ...(opts.notas ? [{ notas: { contains: q, mode: "insensitive" as const } }] : []),
+      { unidades: { some: { unidad: { codigo: { contains: q, mode: "insensitive" } } } } },
+      ...(digitos.length >= 4 ? [{ cliente: { telefono: { contains: digitos } } }] : []),
+    ],
+  };
+}

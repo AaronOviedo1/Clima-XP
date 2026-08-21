@@ -82,6 +82,7 @@ model User {
   rentas            Renta[]            @relation("RepartidorRentas")
   suscripcionesPush SuscripcionPush[]
   consultasCopiloto ConsultaCopiloto[]
+  accionesCopiloto  AccionCopiloto[]
   createdAt         DateTime           @default(now())
 }
 
@@ -270,6 +271,45 @@ model ConsultaCopiloto {
   latenciaMs    Int
   error         String?
   createdAt     DateTime @default(now())
+  acciones      AccionCopiloto[]
 
   @@index([userId, createdAt])
+}
+
+// Acciones del copiloto: el modelo PROPONE (fila en PROPUESTA con los args ya
+// validados y el resumen que vio la persona), la persona confirma desde la
+// tarjeta del chat y solo entonces se ejecuta la server action existente. La
+// fila es la auditoría completa: qué se propuso, quién, cuándo se decidió y en
+// qué terminó. `huella` guarda el estado de la entidad al proponer, para no
+// ejecutar sobre algo que cambió mientras tanto.
+enum EstadoAccionCopiloto {
+  PROPUESTA
+  CONFIRMADA // reclamada por la confirmación, ejecutándose (claim atómico)
+  EJECUTADA
+  FALLIDA
+  CANCELADA
+  EXPIRADA
+}
+
+model AccionCopiloto {
+  id         String               @id @default(cuid())
+  userId     String
+  usuario    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rol        Rol
+  consultaId String? // la consulta del chat que la propuso
+  consulta   ConsultaCopiloto?    @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+  tipo       String // nombre de la acción (proponer_en_ruta, proponer_pago…)
+  args       Json // lo que se ejecuta al confirmar; nunca viene del cliente
+  resumen    Json // { titulo, lineas, confirmacion, enlace? } tal cual lo vio la persona
+  ejecucion  Json? // lo resuelto al proponer que ejecutar() usa tal cual (p. ej. unidades elegidas, km)
+  entidadId  String? // renta/unidad/mantenimiento afectado
+  huella     String?
+  estado     EstadoAccionCopiloto @default(PROPUESTA)
+  resultado  String? // mensaje final (ok o error)
+  expiraEn   DateTime
+  decididoEn DateTime?
+  createdAt  DateTime             @default(now())
+
+  @@index([userId, estado, createdAt])
+  @@index([userId, decididoEn])
 }

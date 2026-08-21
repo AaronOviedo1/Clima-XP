@@ -11,6 +11,7 @@ import {
   ESTADO_CHIP,
   ESTADOS_SIN_COBRO,
   type EstadoRentaStr,
+  condicionBusquedaRentas,
 } from "@/lib/rentas";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -64,19 +65,8 @@ export default async function RentasPage({
       ? { estado: estadoFiltro as never }
       : {};
 
-  if (busqueda) {
-    const digitos = busqueda.replace(/\D/g, "");
-    where.OR = [
-      { cliente: { nombre: { contains: busqueda, mode: "insensitive" } } },
-      { direccion: { contains: busqueda, mode: "insensitive" } },
-      { notas: { contains: busqueda, mode: "insensitive" } },
-      { unidades: { some: { unidad: { codigo: { contains: busqueda, mode: "insensitive" } } } } },
-      // Teléfono: comparar solo dígitos (se guarda en E.164, +52…).
-      ...(digitos.length >= 4
-        ? [{ cliente: { telefono: { contains: digitos } } } as const]
-        : []),
-    ];
-  }
+  // Mismo criterio que buscar_rentas del copiloto (con notas: aquí sí se ven).
+  if (busqueda) where.OR = condicionBusquedaRentas(busqueda, { notas: true }).OR;
 
   let rentas = await prisma.renta.findMany({
     relationLoadStrategy: "join", // 1 solo round-trip a la BD remota

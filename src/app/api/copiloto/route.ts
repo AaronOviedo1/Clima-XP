@@ -1,19 +1,24 @@
 import { z } from "zod";
 import { contextoDesdeSesion } from "@/lib/copiloto/contexto";
-import { buscarTool, toolsParaRol } from "@/lib/copiloto/registro";
+import { accionesParaRol, buscarAccion, buscarTool, toolsParaRol } from "@/lib/copiloto/registro";
 import { ArgsInvalidos } from "@/lib/copiloto/tool";
+import { AccionNoPermitida } from "@/lib/copiloto/accion";
 import { registrarConsulta } from "@/lib/copiloto/log";
 import { ERROR_RATE_LIMIT, verificarLimite } from "@/lib/copiloto/rate-limit";
 import { ErrorCopiloto, mensajesSchema, responderPregunta } from "@/lib/copiloto/runner";
-import { copilotoHabilitado } from "@/lib/copiloto/flag";
+import { accionesHabilitadas, copilotoHabilitado } from "@/lib/copiloto/flag";
+import { prepararPropuesta, propuestaPendiente, vincularConsulta } from "@/lib/copiloto/propuestas";
 
-// Copiloto de chat (solo lectura). Dos modos, mismo orden siempre:
+// Copiloto de chat. Dos modos, mismo orden siempre:
 // sesión → rate limit → cuerpo → tool(s) → bitácora.
 //   · Conversación: { mensajes: [{ rol, texto }…] } → el modelo elige tools y
-//     redacta (runner.ts). Es lo que usa el widget.
-//   · Directo: { tool, args } ejecuta una tool y devuelve su JSON tal cual lo
-//     recibiría el modelo. Sirve para probar con curl; mismo permiso que el
-//     modo conversación (sesión + rol), así que no abre nada nuevo.
+//     redacta (runner.ts). Es lo que usa el widget. Si el modelo propuso una
+//     acción, la respuesta trae `propuesta` y la persona la decide en
+//     /api/copiloto/acciones; mientras haya una viva, aquí se contesta 409.
+//   · Directo: { tool, args } ejecuta una tool de lectura y devuelve su JSON
+//     tal cual lo recibiría el modelo; con una acción, solo crea la propuesta
+//     (nada se ejecuta). Sirve para probar con curl; mismo permiso que el modo
+//     conversación (sesión + rol), así que no abre nada nuevo.
 //
 // La ruta queda detrás del proxy (sin cookie redirige al login); el 401 de aquí
 // es la segunda capa, y la única que aplica si AUTH_HABILITADA se pone en false.
@@ -40,11 +45,20 @@ export async function GET() {
   return Response.json({
     hoy: ctx.hoy,
     rol: ctx.rol,
-    tools: toolsParaRol(ctx.rol).map((t) => ({
-      nombre: t.nombre,
-      descripcion: t.descripcion,
-      args: z.toJSONSchema(t.args),
-    })),
+    tools: [
+      ...toolsParaRol(ctx.rol).map((t) => ({
+        nombre: t.nombre,
+        tipo: "consulta",
+        descripcion: t.descripcion,
+        args: z.toJSONSchema(t.args),
+      })),
+      ...accionesParaRol(ctx.rol).map((a) => ({
+        nombre: a.nombre,
+        tipo: "accion",
+        descripcion: a.descripcion,
+        args: z.toJSONSchema(a.args),
+      })),
+    ],
   });
 }
 
@@ -66,8 +80,9 @@ export async function POST(req: Request) {
     error?: string,
     headers?: HeadersInit,
     tokens?: { entrada: number; salida: number },
+    propuestaId?: string,
   ) => {
-    await registrarConsulta({
+    const consultaId = await registrarConsulta({
       userId: ctx.userId,
       rol: ctx.rol,
       pregunta,
@@ -77,6 +92,8 @@ export async function POST(req: Request) {
       latenciaMs: Date.now() - inicio,
       error,
     });
+    // La propuesta del turno queda enlazada a la consulta que la generó.
+    if (propuestaId && consultaId) await vincularConsulta(propuestaId, consultaId);
     return Response.json(cuerpo, { status, headers });
   };
 
@@ -118,15 +135,34 @@ export async function POST(req: Request) {
     if ("mensajes" in cuerpo.data) {
       const mensajes = cuerpo.data.mensajes;
       pregunta = mensajes.at(-1)!.texto;
+      // Con una propuesta viva no se consulta al modelo: primero se decide.
+      // Cubre también el widget que perdió la tarjeta (otra pestaña, storage).
+      if (accionesHabilitadas()) {
+        const pendiente = await propuestaPendiente(ctx.userId);
+        if (pendiente) {
+          return await responder(
+            409,
+            { error: "Tienes una acción pendiente de confirmar o cancelar.", propuesta: pendiente },
+            [],
+            "propuesta_pendiente",
+          );
+        }
+      }
       try {
         const r = await responderPregunta(ctx, mensajes);
         return await responder(
           200,
-          { respuesta: r.respuesta, toolsLlamadas: r.toolsLlamadas, hoy: ctx.hoy },
+          {
+            respuesta: r.respuesta,
+            toolsLlamadas: r.toolsLlamadas,
+            hoy: ctx.hoy,
+            ...(r.propuesta ? { propuesta: r.propuesta } : {}),
+          },
           r.toolsLlamadas,
           r.error,
           undefined,
           { entrada: r.tokensEntrada, salida: r.tokensSalida },
+          r.propuesta?.id,
         );
       } catch (e) {
         if (e instanceof ErrorCopiloto) {
@@ -138,6 +174,31 @@ export async function POST(req: Request) {
     }
 
     // --- Modo directo ---
+    // Una acción solo se propone (fila PROPUESTA); se decide en /acciones.
+    const accion = buscarAccion(cuerpo.data.tool, ctx.rol);
+    if (accion) {
+      const args = accion.args.safeParse(cuerpo.data.args ?? {});
+      if (!args.success) {
+        return await responder(
+          400,
+          { error: args.error.issues[0]?.message ?? "Argumentos inválidos." },
+          [],
+          "args_invalidos",
+        );
+      }
+      toolEnCurso = accion.nombre;
+      const propuesta = await prepararPropuesta(accion, args.data, ctx);
+      return await responder(
+        200,
+        { tool: accion.nombre, hoy: ctx.hoy, propuesta },
+        [accion.nombre],
+        undefined,
+        undefined,
+        undefined,
+        propuesta.id,
+      );
+    }
+
     // Filtrada por rol: una tool de admin "no existe" para el repartidor.
     const tool = buscarTool(cuerpo.data.tool, ctx.rol);
     if (!tool) {
@@ -145,7 +206,10 @@ export async function POST(req: Request) {
         404,
         {
           error: `Tool no disponible: ${cuerpo.data.tool}`,
-          disponibles: toolsParaRol(ctx.rol).map((t) => t.nombre),
+          disponibles: [
+            ...toolsParaRol(ctx.rol).map((t) => t.nombre),
+            ...accionesParaRol(ctx.rol).map((a) => a.nombre),
+          ],
         },
         [],
         "tool_no_disponible",
@@ -169,6 +233,9 @@ export async function POST(req: Request) {
     // La tool rechazó los args con el contexto en la mano: es un 400, no un fallo.
     if (e instanceof ArgsInvalidos) {
       return responder(400, { error: e.message }, [], "args_invalidos");
+    }
+    if (e instanceof AccionNoPermitida) {
+      return responder(403, { error: e.message }, [], "accion_no_permitida");
     }
     const mensaje = e instanceof Error ? e.message : "error desconocido";
     console.error(`[copiloto] falló${toolEnCurso ? ` (${toolEnCurso})` : ""}:`, e);
