@@ -190,7 +190,8 @@ export function DashboardCard({
         <div className="flex gap-2">
           {soloLectura && !hecha && (
             <p className="flex h-11 flex-1 items-center justify-center text-xs text-muted-foreground">
-              Las acciones se habilitan el día de la entrega.
+              Las acciones se habilitan el día de la{" "}
+              {contexto === "recoleccion" ? "recolección" : "entrega"}.
             </p>
           )}
           {hecha && (

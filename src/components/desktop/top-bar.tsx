@@ -12,7 +12,7 @@ import {
 // Título y subtítulo por sección (el diseño los muestra en el header claro).
 const META: Record<string, [string, string]> = {
   "/": ["Hoy", ""],
-  "/ruta": ["Ruta del día", "Entregas ordenadas por cercanía"],
+  "/ruta": ["Ruta del día", "Entregas y recolecciones por cercanía"],
   "/rentas": ["Rentas", "Agrupadas por semana de entrega"],
   "/clientes": ["Clientes", "Directorio de clientes"],
   "/inventario": ["Inventario", "Unidades y modelos"],
