@@ -1,7 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { ESTADOS_ACTIVOS } from "@/lib/disponibilidad";
-import { equiposPorModelo } from "@/lib/rentas";
+import { equiposPorModelo, RECOLECCION_HECHA, type EstadoRentaStr } from "@/lib/rentas";
 import { hoyNegocio } from "@/lib/fechas";
+
+// Estados que trae el calendario. La ocupación la marcan solo los ACTIVOS, pero
+// la lista del día incluye además las ya recogidas: al marcar "Recogido" la
+// renta salía de la cuadrícula y su recolección desaparecía del día como si
+// nunca se hubiera programado (no se podía distinguir "no existe" de "ya se
+// hizo"). CONCLUIDA se queda fuera a propósito: solo lo traen las 482 rentas
+// migradas del Excel y llenaría los meses viejos.
+const ESTADOS_CALENDARIO = [...ESTADOS_ACTIVOS, "RECOGIDA"] as const;
 
 export type ModeloCalendario = {
   id: string;
@@ -29,6 +37,7 @@ export type RentaDia = {
   equipos: { nombre: string; cantidad: number }[];
   entrega: boolean; // se entrega ese día
   recoleccion: boolean; // se recoge ese día (la unidad ya cuenta como libre)
+  hecha: boolean; // el equipo ya se recogió: se lista al final y atenuada
 };
 
 export type DiaCalendario = {
@@ -63,6 +72,9 @@ export function sumarMeses(mes: string, delta: number): string {
  * (CONFIRMADA/EN_RUTA/ENTREGADA) — misma regla fin-exclusiva que
  * disponibilidad.ts: el día de recolección la unidad ya está libre.
  * Una renta con entrega y recolección el mismo día ocupa ese único día.
+ *
+ * La lista de rentas de cada día es más amplia que la ocupación: incluye las ya
+ * recogidas (ver ESTADOS_CALENDARIO), que no ocupan nada pero sí pasaron ese día.
  */
 export async function datosCalendario(mes: string): Promise<DatosCalendario> {
   const [anio, mesNum] = mes.split("-").map(Number);
@@ -82,7 +94,7 @@ export async function datosCalendario(mes: string): Promise<DatosCalendario> {
     }),
     prisma.renta.findMany({
       where: {
-        estado: { in: [...ESTADOS_ACTIVOS] },
+        estado: { in: [...ESTADOS_CALENDARIO] },
         fechaInicio: { lte: finMes },
         fechaFin: { gte: inicioMes },
       },
@@ -128,6 +140,8 @@ export async function datosCalendario(mes: string): Promise<DatosCalendario> {
     fin: r.fechaFin.toISOString().slice(0, 10),
     unidades: r.unidades.map((u) => u.unidad),
     equipos: equiposPorModelo(r.unidades),
+    // Una renta ya recogida se lista en su día pero no aparta unidad.
+    hecha: RECOLECCION_HECHA.includes(r.estado as EstadoRentaStr),
   }));
 
   const dias: DiaCalendario[] = [];
@@ -138,10 +152,13 @@ export async function datosCalendario(mes: string): Promise<DatosCalendario> {
     const rentasDelDia: RentaDia[] = [];
 
     for (const o of ocupaciones) {
-      // Misma regla fin-exclusiva que disponibilidad.ts.
-      const ocupa = o.inicio <= fecha && (fecha < o.fin || fecha === o.inicio);
+      // ¿La renta toca el día? (entrega, en curso o recolección) — es lo que
+      // decide si se lista, aunque el equipo ya se haya recogido.
+      if (fecha < o.inicio || fecha > o.fin) continue;
+      // Misma regla fin-exclusiva que disponibilidad.ts, y solo las que siguen
+      // apartando equipo: una recogida ya dejó libre su unidad.
+      const ocupa = !o.hecha && (fecha < o.fin || fecha === o.inicio);
       const recoleccion = o.fin === fecha;
-      if (!ocupa && !recoleccion) continue;
 
       if (ocupa) {
         for (const u of o.unidades) {
@@ -157,6 +174,7 @@ export async function datosCalendario(mes: string): Promise<DatosCalendario> {
         equipos: o.equipos,
         entrega: o.inicio === fecha,
         recoleccion,
+        hecha: o.hecha,
       });
     }
 
@@ -166,9 +184,13 @@ export async function datosCalendario(mes: string): Promise<DatosCalendario> {
       libresPorModelo[m.id] = Math.max(0, m.total - ocupadas);
     }
 
-    // Entregas primero, luego recolecciones, luego las que solo siguen en curso.
+    // Pendientes primero (como el dashboard); dentro de cada grupo, entregas,
+    // luego recolecciones y al final las que solo siguen en curso.
     rentasDelDia.sort(
-      (a, b) => Number(b.entrega) - Number(a.entrega) || Number(b.recoleccion) - Number(a.recoleccion)
+      (a, b) =>
+        Number(a.hecha) - Number(b.hecha) ||
+        Number(b.entrega) - Number(a.entrega) ||
+        Number(b.recoleccion) - Number(a.recoleccion)
     );
 
     dias.push({ fecha, dia: d, libresPorModelo, rentas: rentasDelDia });
