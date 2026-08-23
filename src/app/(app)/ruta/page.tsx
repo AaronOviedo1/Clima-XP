@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Navigation, MapPin } from "lucide-react";
+import { Navigation, MapPin, Truck, PackageOpen } from "lucide-react";
 import { auth } from "@/auth";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
 import { datosDelDia, tarjetaDesdeRenta } from "@/lib/dashboard";
@@ -7,6 +7,7 @@ import { ordenarRuta } from "@/lib/ruta";
 import { obtenerBodega } from "@/lib/configuracion";
 import { linksRuta, embedRutaMaps, type ParadaRuta } from "@/lib/maps";
 import { fechaLarga, fechaValida, hoyNegocio } from "@/lib/fechas";
+import type { RentaTarjeta } from "@/lib/rentas";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardCard } from "@/components/dashboard-card";
 import { RutaFechaSelector } from "@/components/ruta-fecha-selector";
@@ -27,18 +28,46 @@ export default async function RutaPage({
   const usuario = session?.user ?? USUARIO_POR_DEFECTO;
   const esAdmin = usuario.rol === "ADMIN";
 
-  const [{ hoy, entregas }, bodegaInfo] = await Promise.all([
+  const [{ hoy, entregas, recolecciones }, bodegaInfo] = await Promise.all([
     datosDelDia({ esAdmin, conSaldos: false, fecha }),
     obtenerBodega(),
   ]);
 
   const bodega = bodegaInfo?.coords ?? null;
-  const ordenadas = ordenarRuta(entregas, bodega);
 
-  const paradas: ParadaRuta[] = ordenadas.map((r) => ({
-    direccion: r.direccion,
-    lat: r.lat,
-    lng: r.lng,
+  // El día se hace de un viaje: se sale a dejar equipo y a recogerlo, así que
+  // las recolecciones son paradas de la misma ruta y entran al mismo orden por
+  // cercanía. Una renta de un solo día aparece dos veces (se deja y se recoge
+  // ese día): por eso la key de la lista lleva también el contexto.
+  type Parada = {
+    renta: RentaTarjeta;
+    contexto: "entrega" | "recoleccion";
+    lat: number | null;
+    lng: number | null;
+  };
+  const delDia: Parada[] = [
+    ...entregas.map((renta) => ({
+      renta,
+      contexto: "entrega" as const,
+      lat: renta.lat,
+      lng: renta.lng,
+    })),
+    ...recolecciones.map((renta) => ({
+      renta,
+      contexto: "recoleccion" as const,
+      lat: renta.lat,
+      lng: renta.lng,
+    })),
+  ];
+  const ordenadas = ordenarRuta(delDia, bodega);
+
+  const totalEntregas = ordenadas.filter((p) => p.contexto === "entrega").length;
+  const totalRecolecciones = ordenadas.length - totalEntregas;
+
+  const paradas: ParadaRuta[] = ordenadas.map((p) => ({
+    direccion: p.renta.direccion,
+    lat: p.lat,
+    lng: p.lng,
   }));
   const origen = bodega ? { direccion: "Bodega", ...bodega } : undefined;
   const rutas = linksRuta(paradas, origen);
@@ -63,7 +92,7 @@ export default async function RutaPage({
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
             Viendo un día distinto a hoy: las acciones de un tap se desactivan
-            para no marcar entregas antes de tiempo.
+            para no marcar entregas ni recolecciones antes de tiempo.
           </p>
           <Link href="/ruta" className="shrink-0 text-xs text-primary underline underline-offset-2">
             Volver a hoy
@@ -74,7 +103,7 @@ export default async function RutaPage({
       {ordenadas.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No hay entregas programadas para ese día.
+            No hay entregas ni recolecciones programadas para ese día.
           </CardContent>
         </Card>
       ) : (
@@ -104,14 +133,24 @@ export default async function RutaPage({
             </p>
           </div>
 
-          {/* Paradas numeradas (el número vive dentro de la tarjeta) */}
+          {/* Paradas numeradas (el número vive dentro de la tarjeta); el chip
+              dice si en esa parada se deja o se recoge equipo. */}
           <ol className="space-y-3">
-            {ordenadas.map((r, i) => (
-              <li key={r.id}>
+            {ordenadas.map((p, i) => (
+              <li key={`${p.contexto}-${p.renta.id}`} className="space-y-1.5">
+                {p.contexto === "entrega" ? (
+                  <span className="ml-1 inline-flex items-center gap-1.5 rounded-md bg-chip-azul px-2.5 py-1 text-xs font-bold text-chip-azul-fg">
+                    <Truck className="size-3.5" /> Entrega
+                  </span>
+                ) : (
+                  <span className="ml-1 inline-flex items-center gap-1.5 rounded-md bg-chip-ambar px-2.5 py-1 text-xs font-bold text-chip-ambar-fg">
+                    <PackageOpen className="size-3.5" /> Recolección
+                  </span>
+                )}
                 <DashboardCard
-                  r={tarjetaDesdeRenta(r, { conDinero: esAdmin })}
+                  r={tarjetaDesdeRenta(p.renta, { conDinero: esAdmin })}
                   mostrarSaldo={esAdmin}
-                  contexto="entrega"
+                  contexto={p.contexto}
                   soloLectura={!esHoy}
                   numero={i + 1}
                 />
@@ -145,6 +184,14 @@ export default async function RutaPage({
               <span className="text-muted-foreground">
                 Paradas{" "}
                 <b className="ml-1 text-foreground">{ordenadas.length}</b>
+              </span>
+              <span className="text-muted-foreground">
+                Entregas{" "}
+                <b className="ml-1 text-foreground">{totalEntregas}</b>
+              </span>
+              <span className="text-muted-foreground">
+                Recolecciones{" "}
+                <b className="ml-1 text-foreground">{totalRecolecciones}</b>
               </span>
               <span className="text-muted-foreground">
                 Con coordenadas{" "}
