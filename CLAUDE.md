@@ -34,6 +34,9 @@ npx tsx scripts/fusionar-clientes.ts "662 123 4567" "663 123 4567" --commit
 
 # Iconos de la PWA (regenerar si cambia public/HD_sinFondo.png):
 node scripts/generar-iconos.mjs
+
+# Pantallas de arranque de iOS (regenerar si cambia el logo o el azul del splash):
+npx tsx scripts/generar-splash.ts
 ```
 
 ## Convenciones
@@ -77,6 +80,14 @@ prisma/
 Control de acceso por rol: `RUTAS_SOLO_ADMIN` en `src/auth.config.ts` debe mantenerse sincronizado con el flag `soloAdmin` en `src/lib/nav.ts`.
 
 **PWA**: `src/app/manifest.ts` (instalable, `display: standalone`) + iconos generados con `scripts/generar-iconos.mjs` a partir de `public/HD_sinFondo.png` — `src/app/icon.png` (favicon), `src/app/apple-icon.png` (iOS) y `public/icons/*` (192/512, con variantes `maskable` para el recorte de Android).
+
+**Splash de arranque** (`src/components/splash/`): al abrir la PWA **instalada** sale el logo animado —el sol brilla y el viento gira— sobre el azul de marca. Tres piezas que hay que mover juntas, porque las tres pintan el mismo `#152b47` y cualquier desajuste se ve como un destello de color al arrancar: el `background_color` del **manifest** (lo usa Android para su splash automático), los **PNG de iOS** (`apple-touch-startup-image`, que iOS necesita porque no lee el manifest) y el **overlay animado** de la app. Detalles que importan:
+- **El logo está redibujado en SVG** (`splash/logo-animado.tsx`) porque `HD_sinFondo.png` es un bitmap aplanado: sol, rayos, horizonte, hojas y texto comparten un solo canal alfa sobre un degradado, así que no había manera de mover unas piezas y otras no. Toda la geometría del componente está **medida** sobre ese PNG, no estimada: el degradado sale de una regresión (`#5DDFE4 → #004AAD`, y no los tonos que se ven al muestrear el centro), los **17 rayos alternan largo y corto** y traen su ángulo real uno por uno (no son uniformes), y la hoja de viento son **dos cúbicas ajustadas a su contorno** —modelarla como intersección de dos círculos daba 9 505 px contra los 14 809 reales— repetida 5 veces girando sobre (381.5, 686.5). Difiere del original en 1.62/255 de media; si se toca un número, hay que volver a comparar rasterizando contra el PNG.
+- **Nada de JavaScript.** Quién lo ve lo decide el CSS (`@media (display-mode: standalone)`, con respaldo `html[data-standalone]` para iOS anterior a 16.4, que pone un script inline del layout raíz) y cuándo se va lo decide `cx-salida` con `forwards`, que acaba en `visibility: hidden`. Por eso **no** usa `esStandalone()` de `lib/push-cliente.ts`: es de cliente y correría después de hidratar, cuando el splash ya llegó tarde. Y por eso no hay temporizador: si el splash dependiera de un `useEffect` y React no hidratara, se quedaría tapando la app para siempre.
+- Va en el **layout raíz**, no en `(app)/`, para cubrir también `/login` y no esperar al `await auth()`.
+- Los keyframes viven en `globals.css` (son los únicos propios del proyecto; el resto sale de `tw-animate-css`). Ojo con **`vector-effect: non-scaling-stroke`** en los rayos: fija el trazo en píxeles de pantalla y, como el viewBox de 1449 se dibuja a ~230 px, los rayos salían seis veces más gruesos y el abanico se veía como un engranaje macizo.
+- Los PNG de iOS (`public/splash/`, uno por modelo, tabla en `src/lib/splash-ios.ts` que comparten el script y el layout) **tienen que terminar en `.png`**: el matcher de `src/proxy.ts` exime esa extensión, así que se sirven sin sesión. Con cualquier otra el redirect al login los dejaría en blanco.
+- Los hex de marca van literales en el componente, como en `api/cotizacion/documento.tsx`: es arte de marca con colores fijos y sin variante oscura.
 
 **Rutas exentas del proxy** (`src/proxy.ts`): `manifest.webmanifest`, `sw.js` y `api/cron`. Las tres se piden **sin cookies**, así que el redirect al login las rompería en silencio (la app deja de ser instalable, el service worker no registra, y el cron devuelve 200 con el HTML del login sin ejecutar nada).
 

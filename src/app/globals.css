@@ -239,3 +239,181 @@
 @utility sidebar-gradient {
   background-image: linear-gradient(180deg, #1a3455 0%, #152b47 60%, #112238 100%);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Splash de arranque de la PWA (src/components/splash/)
+
+   Dos reglas que sostienen todo esto:
+
+   1. Quién lo ve lo decide el CSS, no JavaScript. `display-mode: standalone`
+      solo es cierto con la app instalada; en el navegador el splash ni se
+      pinta. El respaldo `[data-standalone]` cubre iOS anterior a 16.4, que no
+      soporta la media query (lo pone un script diminuto en el layout raíz).
+   2. Cuándo se va lo decide `cx-salida` con `forwards`, que acaba en
+      `visibility: hidden`. Sin temporizadores: aunque React no llegue a
+      hidratar, el splash se quita solo y no puede dejar la app tapada.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.splash {
+  display: none;
+}
+
+@media (display-mode: standalone) {
+  .splash {
+    display: grid;
+  }
+}
+
+html[data-standalone] .splash {
+  display: grid;
+}
+
+.splash {
+  --splash-total: 1.7s;
+
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  place-items: center;
+  /* El mismo azul que `background_color` del manifest y que los PNG de
+     arranque de iOS: los tres empalman sin destello de por medio. */
+  background-color: #152b47;
+  animation: cx-salida var(--splash-total) linear forwards;
+}
+
+.splash-logo {
+  width: min(58vw, 264px);
+  height: auto;
+  animation: cx-entrada 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes cx-salida {
+  0%,
+  82% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes cx-entrada {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* El viento: cada hoja llega girando sobre el pivote del remolino, una tras
+   otra. `transform-box: view-box` es lo que hace que `transform-origin` se lea
+   en coordenadas del viewBox y no del recuadro de cada hoja. */
+.cx-hoja {
+  transform-box: view-box;
+  transform-origin: 381.5px 686.5px;
+  animation: cx-racha 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(0.12s + var(--i) * 0.07s);
+}
+
+@keyframes cx-racha {
+  from {
+    opacity: 0;
+    transform: rotate(-26deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+}
+
+/* El sol: el halo respira y los rayos destellan en oleada hacia afuera. */
+.cx-halo {
+  transform-box: view-box;
+  transform-origin: 683px 561px;
+  animation: cx-respirar 2.1s ease-in-out infinite;
+}
+
+@keyframes cx-respirar {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+.cx-rayo {
+  transform-box: view-box;
+  transform-origin: 683px 561px;
+  /* Nada de `vector-effect: non-scaling-stroke` aquí: fijaría el trazo en
+     píxeles de pantalla y, como el viewBox de 1449 se dibuja a ~230 px, los
+     once del rayo salían seis veces más gruesos y el abanico se fundía en una
+     mancha. El destello solo escala un 5%, así que engordar con él no se nota. */
+  animation: cx-destello 1.6s ease-in-out infinite;
+  animation-delay: calc(0.3s + var(--i) * 0.045s);
+}
+
+@keyframes cx-destello {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.cx-sol {
+  transform-box: view-box;
+  transform-origin: 683px 561px;
+  animation: cx-latir 2.1s ease-in-out infinite;
+}
+
+@keyframes cx-latir {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.022);
+  }
+}
+
+.cx-texto {
+  animation: cx-texto 0.5s ease-out both;
+  animation-delay: 0.34s;
+}
+
+@keyframes cx-texto {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Con movimiento reducido queda solo el fundido: mismo criterio que
+   (app)/template.tsx. El splash sigue apareciendo y yéndose igual. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo,
+  .cx-hoja,
+  .cx-halo,
+  .cx-rayo,
+  .cx-sol,
+  .cx-texto {
+    animation: none;
+  }
+}
