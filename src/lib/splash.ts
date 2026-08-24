@@ -44,11 +44,28 @@ export const mediaSplash = ({ ancho, alto, dpr }: Pantalla) =>
   `(device-width: ${ancho}px) and (device-height: ${alto}px) and (-webkit-device-pixel-ratio: ${dpr}) and (orientation: portrait)`;
 
 /**
- * Lado del logo dentro de la imagen, en píxeles reales. Replica el
- * `width: min(58vw, 264px)` de `.splash-logo` en globals.css para que el PNG y
+ * Ancho del logo dentro de la imagen, en píxeles reales. Replica el
+ * `width: min(72vw, 340px)` de `.splash-logo` en globals.css para que el PNG y
  * el primer fotograma del splash animado coincidan y el cambio no se note.
  */
-export const ladoLogo = ({ ancho, dpr }: Pantalla) => Math.round(Math.min(ancho * 0.58, 264) * dpr);
+export const anchoLogo = ({ ancho, dpr }: Pantalla) => Math.round(Math.min(ancho * 0.72, 340) * dpr);
 
-/** El azul de `.splash`, `background_color` del manifest y `theme_color`. */
-export const FONDO_SPLASH = "#152b47";
+/** Fondo del splash: el mismo `background_color` del manifest. */
+export const FONDO_SPLASH = "#ffffff";
+
+/**
+ * El logo suelto (sin el disco azul) está pensado para ir sobre el azul: su
+ * "press" es blanco y su "ClimaX" un celeste de 1.98:1. Sobre el fondo blanco
+ * del splash, uno desaparecería y el otro sería ilegible, así que el texto se
+ * recolorea a los tonos oscuros de la marca — conservando la jerarquía del
+ * original, donde "press" es la parte de más contraste (4.9:1 y 14.3:1, AA).
+ *
+ * Los usan `splash/logo-animado.tsx` (el SVG) y `scripts/generar-splash.ts`
+ * (los PNG de iOS): tienen que moverse juntos o las dos pantallas dejarían de
+ * empalmar.
+ */
+export const TEXTO_CLIMAX = "#3871C1";
+export const TEXTO_PRESS = "#152b47";
+/** Los colores que traen esas mismas letras en el PNG original. */
+export const TEXTO_CLIMAX_ORIGINAL = "#70C1F1";
+export const TEXTO_PRESS_ORIGINAL = "#FFFFFF";

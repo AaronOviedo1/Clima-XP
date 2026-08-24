@@ -4,7 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SplashArranque } from "@/components/splash/splash-arranque";
-import { PANTALLAS_IOS, archivoSplash, mediaSplash } from "@/lib/splash-ios";
+import { PANTALLAS_IOS, archivoSplash, mediaSplash } from "@/lib/splash";
 
 // Manrope es la tipografía de cuerpo/UI del diseño desktop; Questrial se
 // reserva para títulos grandes (--font-heading).

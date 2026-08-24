@@ -252,6 +252,11 @@
    2. Cuándo se va lo decide `cx-salida` con `forwards`, que acaba en
       `visibility: hidden`. Sin temporizadores: aunque React no llegue a
       hidratar, el splash se quita solo y no puede dejar la app tapada.
+
+   El ritmo busca parecerse al de una app nativa: entradas largas con easing
+   de salida (nada arranca de golpe ni rebota), amplitudes chicas, el sol y su
+   halo latiendo al mismo compás, y una despedida que sube el logo un pelín
+   mientras se funde — el gesto de iOS al soltar su splash.
    ───────────────────────────────────────────────────────────────────────── */
 
 .splash {
@@ -269,27 +274,35 @@ html[data-standalone] .splash {
 }
 
 .splash {
-  --splash-total: 1.7s;
+  --splash-total: 1.9s;
+  /* A partir de aquí arranca la despedida: fundido y zoom a la vez. */
+  --splash-adios: 84%;
 
   position: fixed;
   inset: 0;
   z-index: 90;
   place-items: center;
-  /* El mismo azul que `background_color` del manifest y que los PNG de
+  /* El mismo blanco que `background_color` del manifest y que los PNG de
      arranque de iOS: los tres empalman sin destello de por medio. */
-  background-color: #152b47;
+  background-color: #ffffff;
   animation: cx-salida var(--splash-total) linear forwards;
 }
 
+/* El marco existe solo para separar dos transformaciones que se pisarían: la
+   entrada del logo y el zoom de la despedida. */
+.splash-marco {
+  animation: cx-despedida var(--splash-total) ease-in forwards;
+}
+
 .splash-logo {
-  width: min(58vw, 264px);
+  width: min(72vw, 340px);
   height: auto;
-  animation: cx-entrada 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cx-entrada 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes cx-salida {
   0%,
-  82% {
+  84% {
     opacity: 1;
     visibility: visible;
   }
@@ -299,10 +312,20 @@ html[data-standalone] .splash {
   }
 }
 
+@keyframes cx-despedida {
+  0%,
+  84% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.05);
+  }
+}
+
 @keyframes cx-entrada {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.965);
   }
   to {
     opacity: 1;
@@ -311,19 +334,21 @@ html[data-standalone] .splash {
 }
 
 /* El viento: cada hoja llega girando sobre el pivote del remolino, una tras
-   otra. `transform-box: view-box` es lo que hace que `transform-origin` se lea
-   en coordenadas del viewBox y no del recuadro de cada hoja. */
+   otra y con bastante solape, para que se lea como una racha y no como cinco
+   piezas entrando en fila. `transform-box: view-box` es lo que hace que
+   `transform-origin` se lea en coordenadas del viewBox y no del recuadro de
+   cada hoja. */
 .cx-hoja {
   transform-box: view-box;
   transform-origin: 381.5px 686.5px;
-  animation: cx-racha 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(0.12s + var(--i) * 0.07s);
+  animation: cx-racha 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(0.1s + var(--i) * 0.055s);
 }
 
 @keyframes cx-racha {
   from {
     opacity: 0;
-    transform: rotate(-26deg);
+    transform: rotate(-14deg);
   }
   to {
     opacity: 1;
@@ -331,52 +356,30 @@ html[data-standalone] .splash {
   }
 }
 
-/* El sol: el halo respira y los rayos destellan en oleada hacia afuera. */
+/* El sol: el halo y el disco laten al mismo compás (misma duración, mismo
+   easing) para que se lea como una sola respiración. */
 .cx-halo {
   transform-box: view-box;
   transform-origin: 683px 561px;
-  animation: cx-respirar 2.1s ease-in-out infinite;
+  animation: cx-respirar 2.8s ease-in-out infinite;
 }
 
 @keyframes cx-respirar {
   0%,
   100% {
-    opacity: 0.5;
-    transform: scale(0.9);
+    opacity: 0.45;
+    transform: scale(0.94);
   }
   50% {
-    opacity: 1;
-    transform: scale(1.06);
-  }
-}
-
-.cx-rayo {
-  transform-box: view-box;
-  transform-origin: 683px 561px;
-  /* Nada de `vector-effect: non-scaling-stroke` aquí: fijaría el trazo en
-     píxeles de pantalla y, como el viewBox de 1449 se dibuja a ~230 px, los
-     once del rayo salían seis veces más gruesos y el abanico se fundía en una
-     mancha. El destello solo escala un 5%, así que engordar con él no se nota. */
-  animation: cx-destello 1.6s ease-in-out infinite;
-  animation-delay: calc(0.3s + var(--i) * 0.045s);
-}
-
-@keyframes cx-destello {
-  0%,
-  100% {
-    opacity: 0.65;
-    transform: scale(1);
-  }
-  35% {
-    opacity: 1;
-    transform: scale(1.05);
+    opacity: 0.9;
+    transform: scale(1.04);
   }
 }
 
 .cx-sol {
   transform-box: view-box;
   transform-origin: 683px 561px;
-  animation: cx-latir 2.1s ease-in-out infinite;
+  animation: cx-latir 2.8s ease-in-out infinite;
 }
 
 @keyframes cx-latir {
@@ -385,19 +388,42 @@ html[data-standalone] .splash {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.022);
+    transform: scale(1.014);
+  }
+}
+
+.cx-rayo {
+  transform-box: view-box;
+  transform-origin: 683px 561px;
+  /* Nada de `vector-effect: non-scaling-stroke` aquí: fijaría el trazo en
+     píxeles de pantalla y, como el viewBox se dibuja a ~300 px de ancho, los
+     once del rayo salían varias veces más gruesos y el abanico se fundía en
+     una mancha. El destello apenas escala, así que engordar con él no se nota. */
+  animation: cx-destello 2.4s ease-in-out infinite;
+  animation-delay: calc(0.35s + var(--i) * 0.03s);
+}
+
+@keyframes cx-destello {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.035);
   }
 }
 
 .cx-texto {
-  animation: cx-texto 0.5s ease-out both;
-  animation-delay: 0.34s;
+  animation: cx-texto 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.42s;
 }
 
 @keyframes cx-texto {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -408,6 +434,7 @@ html[data-standalone] .splash {
 /* Con movimiento reducido queda solo el fundido: mismo criterio que
    (app)/template.tsx. El splash sigue apareciendo y yéndose igual. */
 @media (prefers-reduced-motion: reduce) {
+  .splash-marco,
   .splash-logo,
   .cx-hoja,
   .cx-halo,

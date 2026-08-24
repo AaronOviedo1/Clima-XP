@@ -1,9 +1,15 @@
+import { TEXTO_CLIMAX, TEXTO_PRESS } from "@/lib/splash";
+
 /**
  * El logo de Climaxpress redibujado en SVG, pieza por pieza, para poder
  * animarlo: `public/HD_sinFondo.png` es un bitmap aplanado (sol, rayos,
  * horizonte, las cinco hojas de viento y el texto comparten el mismo canal
  * alfa sobre un degradado), así que no había forma de mover el sol y el viento
  * por separado.
+ *
+ * Va **sin el disco azul**: el splash es sobre blanco, así que se usa el
+ * lockup suelto y el viewBox recorta a lo que ocupa de verdad dentro del disco
+ * original (x 103–1362, y 269–1095, más un poco de aire).
  *
  * Toda la geometría de abajo está MEDIDA sobre ese PNG (lienzo 1449×1428), no
  * estimada a ojo: el degradado sale de una regresión lineal sobre el disco, los
@@ -16,10 +22,12 @@
  * es arte de marca con colores fijos y no tiene variante para el tema oscuro.
  */
 
-const AZUL_CLARO = "#5DDFE4";
-const AZUL_HONDO = "#004AAD";
 const AMARILLO = "#FAB919";
 const MARRON = "#722111";
+
+// Encuadre: lo que ocupa el lockup dentro del lienzo original de 1449×1428,
+// con 24 de aire alrededor.
+const VISTA = "79 245 1308 875";
 
 // Centro del sol y del abanico de rayos.
 const SOL = { x: 683, y: 561 };
@@ -74,15 +82,13 @@ const RAYOS = [
 
 export function LogoAnimado({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 1449 1428" className={className} role="img" aria-label="Climaxpress">
+    <svg viewBox={VISTA} className={className} role="img" aria-label="Climaxpress">
       <defs>
-        <linearGradient id="cx-disco" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor={AZUL_CLARO} />
-          <stop offset="1" stopColor={AZUL_HONDO} />
-        </linearGradient>
         <radialGradient id="cx-halo">
-          <stop offset="0" stopColor={AMARILLO} stopOpacity="0.55" />
-          <stop offset="0.55" stopColor={AMARILLO} stopOpacity="0.18" />
+          {/* Sobre blanco el amarillo casi no contrasta, así que el halo va
+              flojo a propósito: se lee como brillo y no como una mancha. */}
+          <stop offset="0" stopColor={AMARILLO} stopOpacity="0.42" />
+          <stop offset="0.5" stopColor={AMARILLO} stopOpacity="0.14" />
           <stop offset="1" stopColor={AMARILLO} stopOpacity="0" />
         </radialGradient>
         <clipPath id="cx-corte">
@@ -90,8 +96,6 @@ export function LogoAnimado({ className }: { className?: string }) {
         </clipPath>
         <path id="cx-hoja" d={HOJA} />
       </defs>
-
-      <circle cx="724" cy="712" r="712" fill="url(#cx-disco)" />
 
       {/* El viento: cada hoja entra girando sobre el mismo pivote que el
           remolino real, escalonada por --i. */}
@@ -107,7 +111,7 @@ export function LogoAnimado({ className }: { className?: string }) {
 
       {/* El sol y su resplandor, recortados por el horizonte. */}
       <g clipPath="url(#cx-corte)">
-        <circle className="cx-halo" cx={SOL.x} cy={SOL.y} r="330" fill="url(#cx-halo)" />
+        <circle className="cx-halo" cx={SOL.x} cy={SOL.y} r="300" fill="url(#cx-halo)" />
         <g className="cx-sol">
           <circle cx={SOL.x} cy={SOL.y} r="160" fill={AMARILLO} />
           <circle cx={SOL.x} cy={SOL.y} r="166" fill="none" stroke={MARRON} strokeWidth="11" />
@@ -147,10 +151,10 @@ export function LogoAnimado({ className }: { className?: string }) {
         fontWeight="800"
         fontSize="155"
       >
-        <text x="312" y="754" textLength="578" fill="#70C1F1">
+        <text x="312" y="754" textLength="578" fill={TEXTO_CLIMAX}>
           ClimaX
         </text>
-        <text x="912" y="754" textLength="450" fill="#FFFFFF">
+        <text x="912" y="754" textLength="450" fill={TEXTO_PRESS}>
           press
         </text>
       </g>

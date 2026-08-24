@@ -10,10 +10,11 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    // El mismo azul del splash de arranque y de theme_color: Android pinta su
-    // splash automático con este color, y así empalma con el animado sin que
-    // se cuele un destello blanco entre los dos.
-    background_color: "#152b47",
+    // El mismo blanco del splash de arranque: Android pinta su splash
+    // automático con este color, y así empalma con el animado sin que se cuele
+    // un cambio de fondo entre los dos. (theme_color sigue siendo el azul del
+    // header, que es otra cosa: tiñe la barra del sistema.)
+    background_color: "#ffffff",
     theme_color: "#152b47",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

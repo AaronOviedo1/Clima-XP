@@ -18,7 +18,9 @@ import { LogoAnimado } from "./logo-animado";
 export function SplashArranque() {
   return (
     <div className="splash" aria-hidden="true">
-      <LogoAnimado className="splash-logo" />
+      <div className="splash-marco">
+        <LogoAnimado className="splash-logo" />
+      </div>
     </div>
   );
 }
