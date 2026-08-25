@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Questrial, Geist_Mono } from "next/font/google";
+import { Manrope, Montserrat, Questrial, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -12,6 +12,16 @@ const manrope = Manrope({
   variable: "--font-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+// Solo la usa el logotipo del splash. Se carga aparte del resto de la interfaz
+// y con un único grosor para que pese lo mínimo: es una fuente más en el
+// arranque, que es justo el momento sensible.
+const montserrat = Montserrat({
+  variable: "--font-logo",
+  subsets: ["latin"],
+  weight: "800",
   display: "swap",
 });
 
@@ -64,7 +74,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${manrope.variable} ${questrial.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${manrope.variable} ${montserrat.variable} ${questrial.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         {/* Respaldo del splash para iOS anterior a 16.4, que no entiende la

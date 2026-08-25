@@ -274,9 +274,9 @@ html[data-standalone] .splash {
 }
 
 .splash {
-  --splash-total: 1.9s;
+  --splash-total: 3s;
   /* A partir de aquí arranca la despedida: fundido y zoom a la vez. */
-  --splash-adios: 84%;
+  --splash-adios: 95%;
 
   position: fixed;
   inset: 0;
@@ -297,12 +297,12 @@ html[data-standalone] .splash {
 .splash-logo {
   width: min(72vw, 340px);
   height: auto;
-  animation: cx-entrada 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: cx-entrada 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes cx-salida {
   0%,
-  84% {
+  95% {
     opacity: 1;
     visibility: visible;
   }
@@ -314,7 +314,7 @@ html[data-standalone] .splash {
 
 @keyframes cx-despedida {
   0%,
-  84% {
+  95% {
     transform: scale(1);
   }
   100% {
@@ -341,14 +341,14 @@ html[data-standalone] .splash {
 .cx-hoja {
   transform-box: view-box;
   transform-origin: 381.5px 686.5px;
-  animation: cx-racha 0.85s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(0.1s + var(--i) * 0.055s);
+  animation: cx-racha 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(0.08s + var(--i) * 0.15s);
 }
 
 @keyframes cx-racha {
   from {
     opacity: 0;
-    transform: rotate(-14deg);
+    transform: rotate(-45deg);
   }
   to {
     opacity: 1;
@@ -357,11 +357,14 @@ html[data-standalone] .splash {
 }
 
 /* El sol: el halo y el disco laten al mismo compás (misma duración, mismo
-   easing) para que se lea como una sola respiración. */
+   easing) para que se lea como una sola respiración. El ciclo tiene que ser
+   **bastante más corto que el splash entero**: con 2.8s en un splash de 1.9s
+   no llegaba a completar ni una respiración y se leía como un arrastre lento,
+   no como un latido. */
 .cx-halo {
   transform-box: view-box;
   transform-origin: 683px 561px;
-  animation: cx-respirar 2.8s ease-in-out infinite;
+  animation: cx-respirar 0.85s ease-in-out infinite;
 }
 
 @keyframes cx-respirar {
@@ -379,7 +382,7 @@ html[data-standalone] .splash {
 .cx-sol {
   transform-box: view-box;
   transform-origin: 683px 561px;
-  animation: cx-latir 2.8s ease-in-out infinite;
+  animation: cx-latir 0.85s ease-in-out infinite;
 }
 
 @keyframes cx-latir {
@@ -399,8 +402,8 @@ html[data-standalone] .splash {
      píxeles de pantalla y, como el viewBox se dibuja a ~300 px de ancho, los
      once del rayo salían varias veces más gruesos y el abanico se fundía en
      una mancha. El destello apenas escala, así que engordar con él no se nota. */
-  animation: cx-destello 2.4s ease-in-out infinite;
-  animation-delay: calc(0.35s + var(--i) * 0.03s);
+  animation: cx-destello 1.15s ease-in-out infinite;
+  animation-delay: calc(0.2s + var(--i) * 0.022s);
 }
 
 @keyframes cx-destello {
@@ -416,8 +419,8 @@ html[data-standalone] .splash {
 }
 
 .cx-texto {
-  animation: cx-texto 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.42s;
+  animation: cx-texto 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.3s;
 }
 
 @keyframes cx-texto {

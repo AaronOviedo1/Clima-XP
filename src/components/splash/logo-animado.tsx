@@ -143,18 +143,26 @@ export function LogoAnimado({ className }: { className?: string }) {
 
       <rect x="397" y="581" width="573" height="11" fill={MARRON} />
 
-      {/* textLength fija el ancho exacto que ocupa cada palabra en el logo, así
-          el renglón cuadra aunque Manrope no sea la tipografía original. */}
+      {/* Montserrat ExtraBold, elegida a ojo en el banco de pruebas. Ojo: no es
+          la que más se parece al logo —Manrope gana midiendo letra a letra
+          (90.9%)— y además es una fuente extra que cargar en el arranque, así
+          que va con un solo grosor y su propia variable.
+
+          El tamaño y el interletraje salen de ese mismo banco: a 163 con -5.5
+          las dos palabras ocupan lo que ocupan en el logo. **Sin `textLength`**
+          a propósito: forzar el ancho hace que el navegador cuadre separando
+          las letras, que era justo lo que se veía raro antes. */}
       <g
         className="cx-texto"
-        fontFamily="var(--font-sans), Manrope, sans-serif"
+        fontFamily="var(--font-logo), Montserrat, sans-serif"
         fontWeight="800"
-        fontSize="155"
+        fontSize="163"
+        letterSpacing="-5.5"
       >
-        <text x="312" y="754" textLength="578" fill={TEXTO_CLIMAX}>
+        <text x="312" y="754" fill={TEXTO_CLIMAX}>
           ClimaX
         </text>
-        <text x="912" y="754" textLength="450" fill={TEXTO_PRESS}>
+        <text x="907" y="754" fill={TEXTO_PRESS}>
           press
         </text>
       </g>
