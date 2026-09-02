@@ -18,7 +18,9 @@ export const config = {
   //   manifest.webmanifest → la app dejaría de ser instalable.
   //   sw.js                → el navegador lo rechaza si le llega HTML del login.
   //   api/cron             → Vercel los llama sin sesión; se autentican con CRON_SECRET.
+  //   api/integracion      → pasta stats la llama sin sesión; se autentica con
+  //                          PASTA_STATS_SECRET (ver src/lib/integracion.ts).
   matcher: [
-    "/((?!api/auth|api/cron|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw\\.js|.*\\.png$).*)",
+    "/((?!api/auth|api/cron|api/integracion|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw\\.js|.*\\.png$).*)",
   ],
 };

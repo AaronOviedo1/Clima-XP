@@ -42,6 +42,7 @@ import {
 } from "@/lib/google-maps";
 import { areaDeSugerencias, motivoFueraDeCobertura } from "@/lib/cobertura";
 import { obtenerBodega } from "@/lib/configuracion";
+import { notificarPastaStats, pagoParaExportar } from "@/lib/integracion";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
 export async function sugerirDomicilio(km: number): Promise<SugerenciaDomicilio | null> {
@@ -885,6 +886,19 @@ export async function eliminarRenta(rentaId: string): Promise<RentaActionResult>
 }
 
 // ---------- Pagos ----------
+
+// El dinero de Climaxpress también vive en pasta stats, el panel financiero.
+// Avisar es best-effort a propósito: si el panel está caído, el cobro se
+// registra igual y su barrido diario recupera lo que se haya perdido.
+async function avisarAPastaStats(pagoId: string): Promise<void> {
+  try {
+    const pago = await pagoParaExportar(pagoId);
+    if (pago) await notificarPastaStats({ evento: "pago.registrado", pago });
+  } catch (e) {
+    console.error("[pasta-stats] avisar:", e);
+  }
+}
+
 const pagoSchema = z.object({
   monto: z.number().int().positive("El monto debe ser mayor a 0"),
   metodo: z.enum(["EFECTIVO", "TRANSFERENCIA", "LINK_MERCADO_PAGO", "OTRO"]),
@@ -902,7 +916,7 @@ export async function registrarPago(
   const renta = await prisma.renta.findUnique({ where: { id: rentaId }, select: { id: true } });
   if (!renta) return { error: "Renta no encontrada." };
 
-  await prisma.pago.create({
+  const creado = await prisma.pago.create({
     data: {
       rentaId,
       monto: parsed.data.monto,
@@ -911,6 +925,8 @@ export async function registrarPago(
       pagado: true, // pago manual confirmado
     },
   });
+
+  await avisarAPastaStats(creado.id);
 
   revalidatePath(`/rentas/${rentaId}`);
   revalidatePath("/rentas");
@@ -930,6 +946,7 @@ export async function eliminarPago(
   if (!pago || pago.rentaId !== rentaId) return { error: "Pago no encontrado." };
 
   await prisma.pago.delete({ where: { id: pagoId } });
+  await notificarPastaStats({ evento: "pago.eliminado", pago_id: pagoId });
 
   revalidatePath(`/rentas/${rentaId}`);
   revalidatePath("/rentas");
