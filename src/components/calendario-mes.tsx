@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, PackageCheck, PackageOpen, Truck } from "lucide-react";
+import { ChevronRight, CircleCheck, PackageCheck, PackageOpen, Truck } from "lucide-react";
 import type {
   DiaCalendario,
   ModeloCalendario,
@@ -205,11 +205,21 @@ export function CalendarioMes({
                   <Link
                     key={r.id}
                     href={`/rentas/${r.id}`}
-                    className="flex items-center gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 active:bg-muted"
+                    className={cn(
+                      "flex items-center gap-3 border-b border-border/60 px-4 py-3 last:border-b-0 active:bg-muted",
+                      // Ya recogida: sigue en su día, pero apagada (mismo
+                      // lenguaje que las tarjetas del dashboard).
+                      r.hecha && "opacity-75",
+                    )}
                   >
                     <EtiquetaEvento r={r} />
-                    <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold">
-                      {r.cliente}
+                    <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                      <span className="truncate text-[14.5px] font-semibold">
+                        {r.cliente}
+                      </span>
+                      {r.hecha && (
+                        <CircleCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      )}
                     </span>
                     <span className="shrink-0 text-[12.5px] font-semibold text-muted-foreground">
                       {equipoStr(r)}
