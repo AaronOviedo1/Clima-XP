@@ -44,8 +44,8 @@ export function BloqueCargos({ form }: { form: RentaFormApi }) {
           <span className="block text-[14.5px] font-bold">+ IVA (16%)</span>
           <span className="block text-[12.5px] text-muted-foreground">
             {form.requiereFactura && form.calc.iva > 0
-              ? `Suma ${pesos(form.calc.iva)} al total. El domicilio no lleva IVA.`
-              : "Solo sobre el equipo; el domicilio no lleva IVA."}
+              ? `Suma ${pesos(form.calc.iva)} al total.`
+              : "Sobre todo el precio, con el domicilio."}
           </span>
         </span>
         <Switch

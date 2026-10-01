@@ -80,7 +80,7 @@ const argsRenta = z.strictObject({
   requiereFactura: z
     .boolean()
     .optional()
-    .describe("true si la renta es '+ IVA' (el cliente pide factura): suma 16% sobre el equipo, no sobre el domicilio. Solo si la persona lo dijo."),
+    .describe("true si la renta es '+ IVA' (el cliente pide factura): suma 16% sobre todo el precio, domicilio incluido. Solo si la persona lo dijo."),
   notas: z.string().trim().max(500).optional(),
 });
 
@@ -236,7 +236,7 @@ export const proponerRenta = definirAccion({
       ...(a.anticipo ? [{ etiqueta: "Anticipo", valor: `${pesos(a.anticipo.monto)} · ${a.anticipo.metodo}` }, { etiqueta: "Saldo", valor: pesos(saldo) }] : []),
       ...(a.ventanaEntrega ? [{ etiqueta: "Ventana", valor: a.ventanaEntrega }] : []),
       ...(a.lugar ? [{ etiqueta: "Lugar", valor: a.lugar }] : []),
-      ...(calc.iva > 0 ? [{ etiqueta: "IVA 16%", valor: `${pesos(calc.iva)} (solo sobre el equipo)` }] : []),
+      ...(calc.iva > 0 ? [{ etiqueta: "IVA 16%", valor: pesos(calc.iva) }] : []),
       ...(a.notas ? [{ etiqueta: "Notas", valor: recortar(a.notas, 80) }] : []),
       ...avisos.map((v) => ({ etiqueta: "Ojo", valor: recortar(v, 100) })),
     ];

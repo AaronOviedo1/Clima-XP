@@ -1,6 +1,6 @@
 import type { Prisma, TipoEquipo } from "@prisma/client";
 import { diasDeRenta } from "@/lib/fechas";
-import { ivaDeProductos } from "@/lib/renta-calculo";
+import { ivaDeSubtotal } from "@/lib/renta-calculo";
 
 // Include estándar para el detalle de una renta.
 export const rentaInclude = {
@@ -71,7 +71,7 @@ export type RentaParaTotales = {
   fechaFin: Date;
   costoDomicilio: number;
   descuentoMonto: number;
-  requiereFactura: boolean; // "+ IVA": el total lleva 16% sobre los productos
+  requiereFactura: boolean; // "+ IVA": el total lleva 16% encima
   unidades: { precioDia: number }[];
   accesorios: { cargo: number }[];
   pagos: { monto: number; tipo: string; pagado: boolean }[];
@@ -136,18 +136,16 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
     (acc, ra) => acc + ra.cargo,
     0,
   );
-  // Mismo IVA que calcularRenta: sobre los productos, nunca sobre el domicilio.
-  const iva = renta.requiereFactura
-    ? ivaDeProductos(subtotalEquipos + subtotalAccesorios, renta.descuentoMonto)
-    : 0;
-  const total =
-    Math.max(
-      0,
-      subtotalEquipos +
-        subtotalAccesorios +
-        renta.costoDomicilio -
-        renta.descuentoMonto,
-    ) + iva;
+  const subtotal = Math.max(
+    0,
+    subtotalEquipos +
+      subtotalAccesorios +
+      renta.costoDomicilio -
+      renta.descuentoMonto,
+  );
+  // Mismo IVA que calcularRenta: sobre todo el subtotal, domicilio incluido.
+  const iva = renta.requiereFactura ? ivaDeSubtotal(subtotal) : 0;
+  const total = subtotal + iva;
   const pagadoConfirmado = renta.pagos.reduce((acc, p) => acc + montoNeto(p), 0);
   // Una cancelada no genera cobro: lo que no se haya pagado ya no se debe (si
   // hubo anticipo, sigue como pagado; para regresarlo se registra un reembolso).

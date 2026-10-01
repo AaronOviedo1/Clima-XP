@@ -4,8 +4,8 @@
 // Total = Σ(unidades × precioEfectivo × días) + costoDomicilio
 //         + Σ(cargos de accesorios) − descuento + IVA (si la renta es "+ IVA")
 //
-// El IVA va solo sobre los productos (equipo y accesorios, ya con el
-// descuento): el servicio a domicilio no lo lleva.
+// El IVA va sobre todo el precio: equipo, accesorios y servicio a domicilio,
+// ya con el descuento.
 //
 // Regla calentones: si la renta lleva 3+ calentones, cada calentón usa precioDia3Mas.
 
@@ -45,12 +45,13 @@ const UMBRAL_CALENTONES = 3;
 
 export const TASA_IVA = 0.16;
 
-// IVA de una renta "+ IVA". La base son los productos con su descuento; el
-// domicilio queda fuera. Vive aquí porque lo comparten el formulario, el
-// servidor, los totales de las listas y la hoja de cotización: si cada uno
-// sacara su 16% por su lado, el saldo y la hoja dejarían de coincidir.
-export function ivaDeProductos(productos: number, descuentoMonto: number): number {
-  return Math.round(Math.max(0, productos - descuentoMonto) * TASA_IVA);
+// IVA de una renta "+ IVA". La base es el subtotal completo (equipo,
+// accesorios y domicilio, menos el descuento). Vive aquí porque lo comparten
+// el formulario, el servidor, los totales de las listas y la hoja de
+// cotización: si cada uno sacara su 16% por su lado, el saldo y la hoja
+// dejarían de coincidir.
+export function ivaDeSubtotal(subtotal: number): number {
+  return Math.round(Math.max(0, subtotal) * TASA_IVA);
 }
 
 export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
@@ -74,14 +75,12 @@ export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
   const costoDomicilio = Math.max(0, e.costoDomicilio || 0);
   const descuentoMonto = Math.max(0, e.descuentoMonto || 0);
 
-  const iva = e.conIva
-    ? ivaDeProductos(subtotalEquipos + subtotalAccesorios, descuentoMonto)
-    : 0;
-  const total =
-    Math.max(
-      0,
-      subtotalEquipos + subtotalAccesorios + costoDomicilio - descuentoMonto,
-    ) + iva;
+  const subtotal = Math.max(
+    0,
+    subtotalEquipos + subtotalAccesorios + costoDomicilio - descuentoMonto,
+  );
+  const iva = e.conIva ? ivaDeSubtotal(subtotal) : 0;
+  const total = subtotal + iva;
 
   return {
     dias,

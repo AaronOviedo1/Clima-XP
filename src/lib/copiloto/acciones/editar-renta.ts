@@ -88,7 +88,7 @@ const argsEditar = z.strictObject({
   requiereFactura: z
     .boolean()
     .optional()
-    .describe("Pone o quita el '+ IVA' de la renta: 16% sobre el equipo, no sobre el domicilio."),
+    .describe("Pone o quita el '+ IVA' de la renta: 16% sobre todo el precio, domicilio incluido."),
   agregarNota: z
     .string()
     .trim()

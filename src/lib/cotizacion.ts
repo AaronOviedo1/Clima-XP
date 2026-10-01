@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { diasDeRenta, fechaConMes } from "@/lib/fechas";
-import { ivaDeProductos } from "@/lib/renta-calculo";
+import { ivaDeSubtotal } from "@/lib/renta-calculo";
 
 // Datos de la hoja de cotización que se le manda al cliente (ver
 // /api/cotizacion, que los pinta como imagen). Sale de cualquier renta, esté
@@ -34,7 +34,7 @@ export type HojaCotizacion = {
   descuentoMonto: number;
   descuentoPct: string | null; // "20%" / "35.8%"
   subtotalConDescuento: number;
-  iva: number | null; // null cuando la renta no es "+ IVA"; va solo sobre el equipo
+  iva: number | null; // null cuando la renta no es "+ IVA"
   total: number;
 };
 
@@ -123,16 +123,13 @@ export async function datosDesdeRenta(rentaId: string): Promise<HojaCotizacion |
     .flatMap((g) => g.lineas)
     .reduce((acc, l) => acc + l.importe, 0);
 
-  // Mismo orden que la hoja: equipos + domicilio − descuento, y al final el
-  // IVA (solo si la renta es "+ IVA"). El IVA no sale de ese subtotal sino del
-  // equipo ya descontado: el servicio a domicilio no lo lleva.
+  // Mismo orden que la hoja: equipos + domicilio − descuento, y el IVA sobre
+  // eso (solo si la renta es "+ IVA").
   const subtotalConDescuento = Math.max(
     0,
     subtotalEquipos + renta.costoDomicilio - renta.descuentoMonto,
   );
-  const iva = renta.requiereFactura
-    ? ivaDeProductos(subtotalEquipos, renta.descuentoMonto)
-    : null;
+  const iva = renta.requiereFactura ? ivaDeSubtotal(subtotalConDescuento) : null;
 
   return {
     fecha: fechaConMes(renta.fechaInicio).toUpperCase(),

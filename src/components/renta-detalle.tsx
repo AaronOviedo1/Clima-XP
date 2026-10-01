@@ -261,7 +261,7 @@ export function RentaDetalle({
           {t.descuentoMonto > 0 && (
             <Fila label={`Descuento${renta.descuentoNota ? ` (${renta.descuentoNota})` : ""}`} value={`−${pesos(t.descuentoMonto)}`} />
           )}
-          {renta.requiereFactura && <Fila label="IVA 16% (equipo)" value={pesos(t.iva)} />}
+          {renta.requiereFactura && <Fila label="IVA 16%" value={pesos(t.iva)} />}
           <Separator className="my-1" />
           <Fila label="Total" value={pesos(t.total)} fuerte />
           <Fila label="Pagado" value={pesos(t.pagadoConfirmado)} />

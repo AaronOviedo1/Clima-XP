@@ -112,7 +112,7 @@ export function PasoResumen({
           {form.calc.descuentoMonto > 0 && (
             <Fila label="Descuento" value={`−${pesos(form.calc.descuentoMonto)}`} />
           )}
-          {form.calc.iva > 0 && <Fila label="IVA 16% (equipo)" value={pesos(form.calc.iva)} />}
+          {form.calc.iva > 0 && <Fila label="IVA 16%" value={pesos(form.calc.iva)} />}
           <Separator className="my-1" />
           <div className="flex items-center justify-between">
             <span className="text-[15px] font-bold">Total</span>
