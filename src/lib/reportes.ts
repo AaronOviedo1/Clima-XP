@@ -13,6 +13,7 @@ const reporteSelect = {
   fechaFin: true,
   costoDomicilio: true,
   descuentoMonto: true,
+  requiereFactura: true,
   distanciaKm: true,
   cliente: { select: { nombre: true } },
   unidades: {

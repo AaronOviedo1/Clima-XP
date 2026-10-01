@@ -1,5 +1,6 @@
 import type { Prisma, TipoEquipo } from "@prisma/client";
 import { diasDeRenta } from "@/lib/fechas";
+import { ivaDeProductos } from "@/lib/renta-calculo";
 
 // Include estándar para el detalle de una renta.
 export const rentaInclude = {
@@ -21,6 +22,7 @@ const rentaListaScalars = {
   fechaFin: true,
   costoDomicilio: true,
   descuentoMonto: true,
+  requiereFactura: true,
 } satisfies Prisma.RentaSelect;
 
 // El modelo de cada unidad se trae para poder decir QUÉ se rentó, no solo cuántos.
@@ -69,6 +71,7 @@ export type RentaParaTotales = {
   fechaFin: Date;
   costoDomicilio: number;
   descuentoMonto: number;
+  requiereFactura: boolean; // "+ IVA": el total lleva 16% sobre los productos
   unidades: { precioDia: number }[];
   accesorios: { cargo: number }[];
   pagos: { monto: number; tipo: string; pagado: boolean }[];
@@ -111,6 +114,7 @@ export type TotalesRenta = {
   subtotalAccesorios: number;
   costoDomicilio: number;
   descuentoMonto: number;
+  iva: number; // 0 si la renta no es "+ IVA"
   total: number;
   pagadoConfirmado: number; // neto de reembolsos
   saldo: number;
@@ -132,13 +136,18 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
     (acc, ra) => acc + ra.cargo,
     0,
   );
-  const total = Math.max(
-    0,
-    subtotalEquipos +
-      subtotalAccesorios +
-      renta.costoDomicilio -
-      renta.descuentoMonto,
-  );
+  // Mismo IVA que calcularRenta: sobre los productos, nunca sobre el domicilio.
+  const iva = renta.requiereFactura
+    ? ivaDeProductos(subtotalEquipos + subtotalAccesorios, renta.descuentoMonto)
+    : 0;
+  const total =
+    Math.max(
+      0,
+      subtotalEquipos +
+        subtotalAccesorios +
+        renta.costoDomicilio -
+        renta.descuentoMonto,
+    ) + iva;
   const pagadoConfirmado = renta.pagos.reduce((acc, p) => acc + montoNeto(p), 0);
   // Una cancelada no genera cobro: lo que no se haya pagado ya no se debe (si
   // hubo anticipo, sigue como pagado; para regresarlo se registra un reembolso).
@@ -154,6 +163,7 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
     subtotalAccesorios,
     costoDomicilio: renta.costoDomicilio,
     descuentoMonto: renta.descuentoMonto,
+    iva,
     total,
     pagadoConfirmado,
     saldo,

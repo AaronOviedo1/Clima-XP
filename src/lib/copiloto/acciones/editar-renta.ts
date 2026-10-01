@@ -85,7 +85,10 @@ const argsEditar = z.strictObject({
     .optional()
     .describe("Horario de entrega tal cual lo dijo la persona; null lo quita."),
   lugar: z.string().trim().max(40).nullable().optional().describe("Tipo de lugar (Casa, Escuela, Salón…); null lo quita."),
-  requiereFactura: z.boolean().optional(),
+  requiereFactura: z
+    .boolean()
+    .optional()
+    .describe("Pone o quita el '+ IVA' de la renta: 16% sobre el equipo, no sobre el domicilio."),
   agregarNota: z
     .string()
     .trim()
@@ -301,7 +304,7 @@ export const proponerEditarRenta = definirAccion({
     const lugar = a.lugar === undefined ? r.lugar : a.lugar;
     if ((lugar ?? "") !== (r.lugar ?? "")) cambiados.push("lugar");
     const requiereFactura = a.requiereFactura ?? r.requiereFactura;
-    if (requiereFactura !== r.requiereFactura) cambiados.push("factura");
+    if (requiereFactura !== r.requiereFactura) cambiados.push("IVA");
     const notas = a.agregarNota ? [r.notas, a.agregarNota].filter(Boolean).join(" · ") : r.notas;
     if (a.agregarNota) cambiados.push("nota");
 
@@ -311,7 +314,7 @@ export const proponerEditarRenta = definirAccion({
 
     // Desglose nuevo con la misma función pura que el formulario y el servidor.
     const unidadesCalc: UnidadCalc[] = elegidas.map((e) => ({ id: e.id, tipo: e.modelo.tipo, precioDia: e.modelo.precioDia, precioDia3Mas: e.modelo.precioDia3Mas }));
-    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto });
+    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto, conIva: requiereFactura });
     if (descuentoMonto > 0 && descuentoMonto >= calc.subtotalEquipos + costoDomicilio) {
       throw new ArgsInvalidos(`El descuento ${pesos(descuentoMonto)} es igual o mayor que el importe (${pesos(calc.subtotalEquipos + costoDomicilio)}); confírmalo.`);
     }
@@ -370,7 +373,7 @@ export const proponerEditarRenta = definirAccion({
         : []),
       ...((ventanaEntrega ?? "") !== (r.ventanaEntrega ?? "") ? [{ etiqueta: "Ventana", valor: flecha(r.ventanaEntrega || "—", ventanaEntrega || "—") }] : []),
       ...((lugar ?? "") !== (r.lugar ?? "") ? [{ etiqueta: "Lugar", valor: flecha(r.lugar || "—", lugar || "—") }] : []),
-      ...(requiereFactura !== r.requiereFactura ? [{ etiqueta: "Factura", valor: flecha(r.requiereFactura ? "sí" : "no", requiereFactura ? "sí" : "no") }] : []),
+      ...(requiereFactura !== r.requiereFactura ? [{ etiqueta: "+ IVA", valor: flecha(r.requiereFactura ? "sí" : "no", requiereFactura ? `sí (${pesos(calc.iva)})` : "no") }] : []),
       ...(a.agregarNota ? [{ etiqueta: "Nota que se agrega", valor: recortar(a.agregarNota, 100) }] : []),
       { etiqueta: "Total", valor: flecha(pesos(antes.total), pesos(calc.total)) },
       ...(antes.pagadoConfirmado > 0 ? [{ etiqueta: "Pagado", valor: pesos(antes.pagadoConfirmado) }] : []),

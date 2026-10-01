@@ -347,6 +347,7 @@ export async function crearRenta(
         costoDomicilio: d.costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto: d.descuentoMonto,
+        conIva: d.requiereFactura,
       });
       const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
 
@@ -480,6 +481,7 @@ export async function editarRenta(
         costoDomicilio: d.costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto: d.descuentoMonto,
+        conIva: d.requiereFactura,
       });
       const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
 

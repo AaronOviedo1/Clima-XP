@@ -445,8 +445,9 @@ export function useRentaForm({
         costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto,
+        conIva: requiereFactura,
       }),
-    [unidadesSeleccionadas, dias, costoDomicilio, descuentoMonto],
+    [unidadesSeleccionadas, dias, costoDomicilio, descuentoMonto, requiereFactura],
   );
 
   // ---------- Validación ----------

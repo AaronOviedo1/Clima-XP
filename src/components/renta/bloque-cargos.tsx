@@ -1,9 +1,10 @@
 "use client";
 
 import type { RentaFormApi } from "@/hooks/use-renta-form";
-import { Checkbox } from "@/components/ui/checkbox";
+import { pesos } from "@/lib/dinero";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -22,8 +23,12 @@ const METODOS = [
 ];
 
 /**
- * Descuento, factura, anticipo y notas: lo que casi nunca se toca, plegado.
- * Lo comparten el último paso del alta y la pantalla de edición.
+ * El "+ IVA" a la vista, y debajo descuento, anticipo y notas: lo que casi
+ * nunca se toca, plegado. Lo comparten el último paso del alta y la pantalla
+ * de edición.
+ *
+ * El interruptor no va dentro del colapsable porque cambia el total: escondido
+ * ahí se guardaba la renta sin IVA y nadie lo notaba hasta cobrar.
  *
  * Los campos van apilados, no en `grid-cols-2`: en un iPhone esas dos columnas
  * dejaban campos de ~165px donde no cabía "25% renta larga".
@@ -33,9 +38,26 @@ export function BloqueCargos({ form }: { form: RentaFormApi }) {
 
   return (
     <div className="space-y-4">
+      {/* Toda la fila es el área de toque, no solo el interruptor. */}
+      <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border bg-card px-4 py-3">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14.5px] font-bold">+ IVA (16%)</span>
+          <span className="block text-[12.5px] text-muted-foreground">
+            {form.requiereFactura && form.calc.iva > 0
+              ? `Suma ${pesos(form.calc.iva)} al total. El domicilio no lleva IVA.`
+              : "Solo sobre el equipo; el domicilio no lleva IVA."}
+          </span>
+        </span>
+        <Switch
+          className="origin-right scale-150"
+          checked={form.requiereFactura}
+          onCheckedChange={form.setRequiereFactura}
+        />
+      </label>
+
       <Colapsable
         titulo="Descuento y cobro"
-        abierto={form.descuentoMonto > 0 || form.anticipoMonto > 0 || form.requiereFactura}
+        abierto={form.descuentoMonto > 0 || form.anticipoMonto > 0}
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -58,14 +80,6 @@ export function BloqueCargos({ form }: { form: RentaFormApi }) {
               />
             )}
           </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={form.requiereFactura}
-              onCheckedChange={(v) => form.setRequiereFactura(v === true)}
-            />
-            Requiere factura (agrega IVA a la cotización)
-          </label>
 
           {conAnticipo && (
             <div className="space-y-2">

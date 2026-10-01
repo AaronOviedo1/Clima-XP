@@ -77,7 +77,10 @@ const argsRenta = z.strictObject({
     .strictObject({ monto: z.number().int().positive().max(1_000_000), nota: z.string().trim().min(2).max(120) })
     .optional()
     .describe("Solo si la persona lo dijo; la nota es el motivo."),
-  requiereFactura: z.boolean().optional(),
+  requiereFactura: z
+    .boolean()
+    .optional()
+    .describe("true si la renta es '+ IVA' (el cliente pide factura): suma 16% sobre el equipo, no sobre el domicilio. Solo si la persona lo dijo."),
   notas: z.string().trim().max(500).optional(),
 });
 
@@ -169,7 +172,7 @@ export const proponerRenta = definirAccion({
 
     // 6) Desglose: la misma función pura que el formulario y el servidor.
     const unidadesCalc: UnidadCalc[] = elegidas.map((e) => ({ id: e.id, tipo: e.modelo.tipo, precioDia: e.modelo.precioDia, precioDia3Mas: e.modelo.precioDia3Mas }));
-    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto: a.descuento?.monto ?? 0 });
+    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto: a.descuento?.monto ?? 0, conIva: a.requiereFactura ?? false });
     if (a.descuento && a.descuento.monto >= calc.subtotalEquipos + costoDomicilio) {
       throw new ArgsInvalidos(`El descuento ${pesos(a.descuento.monto)} es igual o mayor que el importe (${pesos(calc.subtotalEquipos + costoDomicilio)}); confírmalo.`);
     }
@@ -233,7 +236,7 @@ export const proponerRenta = definirAccion({
       ...(a.anticipo ? [{ etiqueta: "Anticipo", valor: `${pesos(a.anticipo.monto)} · ${a.anticipo.metodo}` }, { etiqueta: "Saldo", valor: pesos(saldo) }] : []),
       ...(a.ventanaEntrega ? [{ etiqueta: "Ventana", valor: a.ventanaEntrega }] : []),
       ...(a.lugar ? [{ etiqueta: "Lugar", valor: a.lugar }] : []),
-      ...(a.requiereFactura ? [{ etiqueta: "Factura", valor: "sí (IVA aparte en la hoja)" }] : []),
+      ...(calc.iva > 0 ? [{ etiqueta: "IVA 16%", valor: `${pesos(calc.iva)} (solo sobre el equipo)` }] : []),
       ...(a.notas ? [{ etiqueta: "Notas", valor: recortar(a.notas, 80) }] : []),
       ...avisos.map((v) => ({ etiqueta: "Ojo", valor: recortar(v, 100) })),
     ];

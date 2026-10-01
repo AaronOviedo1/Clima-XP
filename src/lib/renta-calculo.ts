@@ -2,7 +2,10 @@
 // en vivo) y el servidor (cálculo autoritativo y snapshot de precios).
 //
 // Total = Σ(unidades × precioEfectivo × días) + costoDomicilio
-//         + Σ(cargos de accesorios) − descuento
+//         + Σ(cargos de accesorios) − descuento + IVA (si la renta es "+ IVA")
+//
+// El IVA va solo sobre los productos (equipo y accesorios, ya con el
+// descuento): el servicio a domicilio no lo lleva.
 //
 // Regla calentones: si la renta lleva 3+ calentones, cada calentón usa precioDia3Mas.
 
@@ -21,6 +24,7 @@ export type EntradaCalculo = {
   costoDomicilio: number;
   cargosAccesorios: number;
   descuentoMonto: number;
+  conIva?: boolean;
 };
 
 export type UnidadConPrecio = UnidadCalc & { precioEfectivo: number };
@@ -33,10 +37,21 @@ export type ResultadoCalculo = {
   subtotalAccesorios: number;
   costoDomicilio: number;
   descuentoMonto: number;
+  iva: number; // 0 cuando la renta no es "+ IVA"
   total: number;
 };
 
 const UMBRAL_CALENTONES = 3;
+
+export const TASA_IVA = 0.16;
+
+// IVA de una renta "+ IVA". La base son los productos con su descuento; el
+// domicilio queda fuera. Vive aquí porque lo comparten el formulario, el
+// servidor, los totales de las listas y la hoja de cotización: si cada uno
+// sacara su 16% por su lado, el saldo y la hoja dejarían de coincidir.
+export function ivaDeProductos(productos: number, descuentoMonto: number): number {
+  return Math.round(Math.max(0, productos - descuentoMonto) * TASA_IVA);
+}
 
 export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
   const dias = Math.max(1, e.dias || 1);
@@ -59,10 +74,14 @@ export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
   const costoDomicilio = Math.max(0, e.costoDomicilio || 0);
   const descuentoMonto = Math.max(0, e.descuentoMonto || 0);
 
-  const total = Math.max(
-    0,
-    subtotalEquipos + subtotalAccesorios + costoDomicilio - descuentoMonto,
-  );
+  const iva = e.conIva
+    ? ivaDeProductos(subtotalEquipos + subtotalAccesorios, descuentoMonto)
+    : 0;
+  const total =
+    Math.max(
+      0,
+      subtotalEquipos + subtotalAccesorios + costoDomicilio - descuentoMonto,
+    ) + iva;
 
   return {
     dias,
@@ -72,6 +91,7 @@ export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
     subtotalAccesorios,
     costoDomicilio,
     descuentoMonto,
+    iva,
     total,
   };
 }
