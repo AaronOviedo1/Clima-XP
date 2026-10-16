@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { esAdmin } from "@/lib/auth-guard";
 import type { LoteActionResult } from "@/lib/lote";
+import { codigosModeloNuevo } from "@/lib/codigos-unidad";
 
 export type InventarioActionResult = { ok: true } | { error: string };
 
@@ -41,6 +42,73 @@ export async function editarPreciosModelo(
     return { ok: true };
   } catch (e) {
     return fallo(e, "No se pudo actualizar el precio.");
+  }
+}
+
+// Alta de un modelo nuevo, con sus primeras unidades de una vez: un modelo
+// sin unidades no se puede rentar (el alta y la disponibilidad lo ignoran),
+// así que darlo de alta vacío obligaba a crear las unidades una por una.
+const nuevoModeloSchema = z.object({
+  tipo: z.enum(["AEROCOOLER", "CALENTON"]),
+  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(60),
+  precioDia: z.number().int().positive("El precio por día debe ser mayor a 0"),
+  // El precio 3+ solo existe para calentones (regla de calcularRenta).
+  precioDia3Mas: z.number().int().positive().nullable(),
+  unidades: z.number().int().min(0).max(50, "Máximo 50 unidades de una vez"),
+  prefijo: z.string().trim().max(10),
+});
+
+export async function crearModelo(
+  input: z.input<typeof nuevoModeloSchema>,
+): Promise<InventarioActionResult> {
+  if (!(await esAdmin())) {
+    return { error: "Solo un administrador puede dar de alta modelos." };
+  }
+  const parsed = nuevoModeloSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+  const d = parsed.data;
+  if (d.unidades > 0 && !d.prefijo) {
+    return { error: "Pon el prefijo de los códigos (EF, CAL…)." };
+  }
+  const codigos = codigosModeloNuevo(d.prefijo, d.unidades);
+
+  try {
+    const repetido = await prisma.modeloEquipo.findFirst({
+      where: { nombre: { equals: d.nombre, mode: "insensitive" } },
+      select: { nombre: true },
+    });
+    if (repetido) return { error: `Ya existe el modelo ${repetido.nombre}.` };
+    if (codigos.length > 0) {
+      const ocupados = await prisma.unidad.findMany({
+        where: { codigo: { in: codigos } },
+        select: { codigo: true },
+        orderBy: { codigo: "asc" },
+      });
+      if (ocupados.length > 0) {
+        return {
+          error: `Ya hay unidades con esos códigos (${ocupados.map((u) => u.codigo).join(", ")}). Usa otro prefijo.`,
+        };
+      }
+    }
+
+    await prisma.modeloEquipo.create({
+      data: {
+        tipo: d.tipo,
+        nombre: d.nombre,
+        precioDia: d.precioDia,
+        precioDia3Mas: d.tipo === "CALENTON" ? d.precioDia3Mas : null,
+        unidades: { create: codigos.map((codigo) => ({ codigo })) },
+      },
+    });
+    refrescar();
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: "Ya existe un modelo con ese nombre o una unidad con esos códigos." };
+    }
+    return fallo(e, "No se pudo crear el modelo.");
   }
 }
 

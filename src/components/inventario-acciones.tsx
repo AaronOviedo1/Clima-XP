@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Flame, Pencil, Plus, Trash2, Wind } from "lucide-react";
 import { toast } from "sonner";
 import {
   cambiarEstadoTambo,
   crearAccesorio,
+  crearModelo,
   crearUnidad,
   editarPreciosModelo,
   editarUnidad,
@@ -17,6 +18,7 @@ import {
   type InventarioActionResult,
 } from "@/lib/actions/inventario";
 import { ESTADO_UNIDAD_META } from "@/lib/inventario";
+import { codigosModeloNuevo, prefijoSugerido } from "@/lib/codigos-unidad";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -430,6 +432,172 @@ export function NuevaUnidadDialog({
             }
           >
             {pending ? "Creando…" : "Crear unidad"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------- Nuevo modelo (con sus primeras unidades) ----------
+export function NuevoModeloDialog({ triggerClassName }: { triggerClassName?: string }) {
+  const [abierto, setAbierto] = useState(false);
+  const [tipo, setTipo] = useState<"AEROCOOLER" | "CALENTON">("AEROCOOLER");
+  const [nombre, setNombre] = useState("");
+  const [precioDia, setPrecioDia] = useState(0);
+  const [precio3Mas, setPrecio3Mas] = useState(0);
+  const [unidades, setUnidades] = useState(1);
+  // null = sigue al nombre; en cuanto se escribe a mano, se respeta.
+  const [prefijo, setPrefijo] = useState<string | null>(null);
+  const { pending, error, ejecutar } = useAccion(() => setAbierto(false));
+
+  const prefijoEfectivo = prefijo ?? prefijoSugerido(nombre);
+  const codigos = codigosModeloNuevo(prefijoEfectivo, unidades);
+  const vistaCodigos =
+    codigos.length <= 3
+      ? codigos.join(", ")
+      : `${codigos[0]}, ${codigos[1]} … ${codigos[codigos.length - 1]}`;
+
+  return (
+    <Dialog
+      open={abierto}
+      onOpenChange={(v) => {
+        setAbierto(v);
+        if (v) {
+          setTipo("AEROCOOLER");
+          setNombre("");
+          setPrecioDia(0);
+          setPrecio3Mas(0);
+          setUnidades(1);
+          setPrefijo(null);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className={cn("h-8", triggerClassName)}>
+          <Plus className="size-3.5" /> Nuevo modelo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Nuevo modelo</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex gap-1 rounded-xl bg-muted p-1">
+            {(
+              [
+                ["AEROCOOLER", "Aerocooler", Wind],
+                ["CALENTON", "Calentón", Flame],
+              ] as const
+            ).map(([valor, texto, Icono]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setTipo(valor)}
+                className={cn(
+                  "flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[9px] text-[13.5px] font-bold transition-colors",
+                  tipo === valor ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+                )}
+              >
+                <Icono className="size-4" /> {texto}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="nmn">Nombre</Label>
+            <Input
+              id="nmn"
+              value={nombre}
+              placeholder={tipo === "AEROCOOLER" ? "Eco-Fresco, Turbo-Frío…" : "Fire Sense Café…"}
+              className="h-11"
+              onChange={(e) => setNombre(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="nmp">Precio por día</Label>
+            <Input
+              id="nmp"
+              type="number"
+              inputMode="numeric"
+              value={precioDia === 0 ? "" : precioDia}
+              placeholder="0"
+              className="h-11"
+              onChange={(e) => setPrecioDia(Math.max(0, parseInt(e.target.value) || 0))}
+            />
+          </div>
+
+          {/* El precio 3+ solo aplica a calentones (regla de calcularRenta). */}
+          {tipo === "CALENTON" && (
+            <div className="space-y-2">
+              <Label htmlFor="nm3">Precio con 3+ calentones (opcional)</Label>
+              <Input
+                id="nm3"
+                type="number"
+                inputMode="numeric"
+                value={precio3Mas === 0 ? "" : precio3Mas}
+                placeholder="Sin precio 3+"
+                className="h-11"
+                onChange={(e) => setPrecio3Mas(Math.max(0, parseInt(e.target.value) || 0))}
+              />
+            </div>
+          )}
+
+          <Separator />
+
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="nmu">Unidades</Label>
+              <Input
+                id="nmu"
+                type="number"
+                inputMode="numeric"
+                value={unidades}
+                className="h-11"
+                onChange={(e) => setUnidades(Math.min(50, Math.max(0, parseInt(e.target.value) || 0)))}
+              />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="nmx">Prefijo</Label>
+              <Input
+                id="nmx"
+                value={prefijoEfectivo}
+                placeholder="EF"
+                className="h-11 uppercase"
+                disabled={unidades === 0}
+                onChange={(e) => setPrefijo(e.target.value.toUpperCase())}
+              />
+            </div>
+          </div>
+          <p className="text-[12.5px] text-muted-foreground">
+            {unidades === 0
+              ? "Sin unidades no se puede rentar; las agregas después con “+ unidad”."
+              : codigos.length > 0
+                ? `Se crean ${vistaCodigos}.`
+                : "Pon el prefijo de los códigos."}
+          </p>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button
+            className="h-11 w-full"
+            disabled={pending || !nombre.trim() || precioDia <= 0}
+            onClick={() =>
+              ejecutar(
+                () =>
+                  crearModelo({
+                    tipo,
+                    nombre,
+                    precioDia,
+                    precioDia3Mas: tipo === "CALENTON" && precio3Mas > 0 ? precio3Mas : null,
+                    unidades,
+                    prefijo: prefijoEfectivo,
+                  }),
+                "Modelo creado",
+              )
+            }
+          >
+            {pending ? "Creando…" : "Crear modelo"}
           </Button>
         </div>
       </DialogContent>

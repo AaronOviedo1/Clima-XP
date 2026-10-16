@@ -14,6 +14,7 @@ import {
   AccesoriosDialog,
   NuevaUnidadDialog,
   NuevoAccesorioDialog,
+  NuevoModeloDialog,
   PreciosDialog,
   ResolverMantenimientoButton,
   UnidadDialog,
@@ -366,7 +367,10 @@ export default async function InventarioPage() {
             <h2 className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
               Modelos
             </h2>
-            <EdicionMasivaDialog modelos={modelosMasivo} />
+            <div className="flex gap-2">
+              <EdicionMasivaDialog modelos={modelosMasivo} />
+              <NuevoModeloDialog />
+            </div>
           </div>
           {modelos.map((m) => (
             <ModeloCardMovil key={m.id} m={m} />
@@ -484,12 +488,13 @@ export default async function InventarioPage() {
         <SubtituloSeccion
           texto={`${kpis.totalUnidades} ${kpis.totalUnidades === 1 ? "unidad" : "unidades"} · ${modelos.length} ${modelos.length === 1 ? "modelo" : "modelos"}`}
         />
-        {/* Y la edición masiva vive en el navbar, junto a "Nueva renta". */}
+        {/* Edición masiva y alta de modelo viven en el navbar, junto a "Nueva renta". */}
         <AccionesSeccion>
           <EdicionMasivaDialog
             modelos={modelosMasivo}
             triggerClassName={CLASE_ACCION_TOP_BAR}
           />
+          <NuevoModeloDialog triggerClassName={CLASE_ACCION_TOP_BAR} />
         </AccionesSeccion>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
