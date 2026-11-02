@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/desktop/sidebar";
 import { TopBar } from "@/components/desktop/top-bar";
 import { SeccionProvider } from "@/components/desktop/seccion";
 import { RegistrarSW } from "@/components/push/registrar-sw";
+import { UsageTracker } from "@/components/usage-tracker";
 import { Copiloto } from "@/components/copiloto/copiloto";
 import { accionesHabilitadas, copilotoHabilitado } from "@/lib/copiloto/flag";
 import { AUTH_HABILITADA, USUARIO_POR_DEFECTO } from "@/lib/auth-flag";
@@ -31,6 +32,7 @@ export default async function AppLayout({
   // diseño desktop; en móvil se conserva AppHeader + BottomNav.
   return (
     <div className="flex min-h-dvh flex-col overflow-x-clip lg:h-dvh lg:min-h-0 lg:flex-row lg:overflow-hidden">
+      <UsageTracker />
       <Sidebar nombre={nombre} esAdmin={esAdmin} authHabilitada={AUTH_HABILITADA} />
 
       {/* El provider envuelve TopBar y contenido: una página publica su

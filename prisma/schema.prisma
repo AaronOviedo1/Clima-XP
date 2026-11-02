@@ -83,7 +83,22 @@ model User {
   suscripcionesPush SuscripcionPush[]
   consultasCopiloto ConsultaCopiloto[]
   accionesCopiloto  AccionCopiloto[]
+  screenViews       ScreenView[]
   createdAt         DateTime           @default(now())
+}
+
+// Qué pantallas abre cada quien. Solo alimenta la vista `metricas_uso` que lee
+// el panel pasta-stats: la app no la consulta. `pantalla` es el patrón
+// normalizado ("rentas/detalle"), nunca un id.
+model ScreenView {
+  id        String   @id @default(cuid())
+  userId    String
+  usuario   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pantalla  String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, pantalla, createdAt])
 }
 
 // Una fila por dispositivo (no por usuario): el mismo repartidor puede tener el
