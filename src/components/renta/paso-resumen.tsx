@@ -35,7 +35,7 @@ export function PasoResumen({
           label="Cliente"
           value={
             <button type="button" onClick={() => irAPaso(0)} className="text-left">
-              {cliente?.nombre ?? "Sin elegir"}
+              {cliente?.nombre ?? "Sin cliente (solo cotización)"}
             </button>
           }
         />
@@ -101,6 +101,11 @@ export function PasoResumen({
             ? "Aparta el equipo en esas fechas."
             : "Solo es un precio: no aparta equipo."}
         </p>
+        {!cliente && form.estado === "CONFIRMADA" && (
+          <p className="text-[12.5px] font-semibold text-saldo">
+            Para apartar el equipo elige un cliente; sin cliente solo se guarda como cotización.
+          </p>
+        )}
       </section>
 
       <Card className="gap-0 py-0">

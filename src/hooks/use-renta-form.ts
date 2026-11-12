@@ -454,8 +454,19 @@ export function useRentaForm({
 
   // Motivo por el que no se puede guardar todavía, o null si está listo. El
   // alta por pasos lo usa para validar cada paso por separado.
+  // Una cotización puede ir sin cliente (se pide el precio por teléfono sin dar
+  // nombre): cuelga del cliente comodín (lib/cliente-generico.ts). En el alta el
+  // estado se elige hasta el último paso, así que el paso 1 deja seguir sin
+  // cliente (`faltaClientePaso`) y el candado real está al guardar.
+  const esCotizacion = edicion ? edicion.estado === "COTIZADA" : estado === "COTIZADA";
   function faltaCliente(): string | null {
-    return clienteId ? null : "Selecciona un cliente.";
+    if (clienteId || esCotizacion) return null;
+    return edicion
+      ? "Selecciona un cliente."
+      : "Selecciona un cliente, o guárdala como cotización.";
+  }
+  function faltaClientePaso(): string | null {
+    return edicion ? faltaCliente() : null;
   }
   function faltaEquipo(): string | null {
     return sel.size > 0 ? null : "Elige al menos un equipo.";
@@ -546,6 +557,7 @@ export function useRentaForm({
     setClientes,
     clienteId,
     setClienteId,
+    faltaClientePaso,
     // fechas
     fechaInicio,
     fechaFin,

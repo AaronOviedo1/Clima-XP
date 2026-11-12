@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { SIN_CLIENTE_GENERICO, esClienteGenerico } from "@/lib/cliente-generico";
 import { inputDesdeFecha } from "@/lib/fechas";
 import { unidadesParaFechas, type UnidadOpcion } from "@/lib/actions/rentas";
 import { UNIDADES_BLOQUEADAS, type EstadoRentaStr } from "@/lib/rentas";
@@ -21,7 +22,7 @@ export async function RentaEditar({
   const renta = await prisma.renta.findUnique({
     where: { id },
     include: {
-      cliente: { select: { nombre: true } },
+      cliente: { select: { nombre: true, telefono: true } },
       unidades: { include: { unidad: { include: { modelo: true } } } },
     },
   });
@@ -32,6 +33,7 @@ export async function RentaEditar({
 
   const [clientes, disponibles] = await Promise.all([
     prisma.cliente.findMany({
+      where: SIN_CLIENTE_GENERICO,
       select: { id: true, nombre: true, telefono: true },
       orderBy: { nombre: "asc" },
     }),
@@ -65,7 +67,8 @@ export async function RentaEditar({
         estado: renta.estado as EstadoRentaStr,
         bloquearUnidades: UNIDADES_BLOQUEADAS.includes(renta.estado as EstadoRentaStr),
         iniciales: {
-          clienteId: renta.clienteId,
+          // La cotización sin cliente se edita con el selector vacío.
+          clienteId: esClienteGenerico(renta.cliente) ? "" : renta.clienteId,
           ventanaEntrega: renta.ventanaEntrega ?? "",
           lugar: renta.lugar ?? "",
           direccion: renta.direccion,

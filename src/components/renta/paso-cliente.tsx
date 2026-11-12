@@ -27,6 +27,9 @@ export function PasoCliente({ form }: { form: RentaFormApi }) {
   const inicio = fechaLocalDesdeInput(form.fechaInicio);
   const fin = fechaLocalDesdeInput(form.fechaFin);
   const eligiendoFin = !!form.rangoCal?.from && !form.rangoCal.to;
+  // En el alta el estado se elige al final, así que siempre se puede seguir sin
+  // cliente (quedará como cotización); al editar, solo si ya es cotización.
+  const sinClientePermitido = form.edicion ? form.edicion.estado === "COTIZADA" : true;
 
   return (
     <div className="space-y-5">
@@ -37,6 +40,7 @@ export function PasoCliente({ form }: { form: RentaFormApi }) {
             clientes={form.clientes}
             value={form.clienteId}
             onChange={form.setClienteId}
+            permitirSinCliente={sinClientePermitido}
           />
           <ClienteRapidoDialog
             onCreado={(c) => {
@@ -49,6 +53,11 @@ export function PasoCliente({ form }: { form: RentaFormApi }) {
             }}
           />
         </div>
+        {!form.clienteId && sinClientePermitido && (
+          <p className="text-[12.5px] text-muted-foreground">
+            ¿Solo es un precio? Puedes seguir sin cliente y guardarla como cotización.
+          </p>
+        )}
       </section>
 
       <section className="space-y-2">

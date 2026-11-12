@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { EstadoRenta } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { esClienteGenerico, idClienteGenerico } from "@/lib/cliente-generico";
 import { fechaDesdeInput, diasDeRenta } from "@/lib/fechas";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
 import {
@@ -237,7 +238,8 @@ export async function unidadesParaFechas(
 
 // ---------- Crear renta ----------
 const crearSchema = z.object({
-  clienteId: z.string().min(1, "Selecciona un cliente"),
+  // Vacío solo en una cotización: cuelga del cliente comodín (cliente-generico.ts).
+  clienteId: z.string().trim().default(""),
   estado: z.enum(["COTIZADA", "CONFIRMADA"]).default("CONFIRMADA"),
   fechaInicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de inicio inválida"),
   fechaFin: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha de fin inválida"),
@@ -301,6 +303,9 @@ export async function crearRenta(
   const inicio = fechaDesdeInput(d.fechaInicio);
   const fin = fechaDesdeInput(d.fechaFin);
   if (fin < inicio) return { error: "La fecha de recolección no puede ser antes de la entrega." };
+  if (d.estado !== "COTIZADA" && !d.clienteId) {
+    return { error: "Selecciona un cliente (o guárdala como cotización)." };
+  }
   if (d.estado !== "COTIZADA" && !d.direccion) {
     return { error: "La dirección es obligatoria." };
   }
@@ -353,7 +358,7 @@ export async function crearRenta(
 
       const renta = await tx.renta.create({
         data: {
-          clienteId: d.clienteId,
+          clienteId: d.clienteId || (await idClienteGenerico(tx)),
           estado: d.estado as EstadoRenta,
           fechaInicio: inicio,
           fechaFin: fin,
@@ -440,6 +445,9 @@ export async function editarRenta(
       if (renta.estado !== "COTIZADA" && !d.direccion) {
         throw new Error("La dirección es obligatoria.");
       }
+      if (renta.estado !== "COTIZADA" && !d.clienteId) {
+        throw new Error("Selecciona un cliente.");
+      }
 
       const actuales = renta.unidades.map((u) => u.unidadId).sort();
       const nuevasIds = [...d.unidadIds].sort();
@@ -492,7 +500,7 @@ export async function editarRenta(
       await tx.renta.update({
         where: { id: rentaId },
         data: {
-          clienteId: d.clienteId,
+          clienteId: d.clienteId || (await idClienteGenerico(tx)),
           fechaInicio: inicio,
           fechaFin: fin,
           ventanaEntrega: d.ventanaEntrega || null,
@@ -552,7 +560,7 @@ export async function cambiarEstadoRenta(
     await prisma.$transaction(async (tx) => {
       const renta = await tx.renta.findUnique({
         where: { id: rentaId },
-        include: { unidades: true },
+        include: { unidades: true, cliente: { select: { nombre: true, telefono: true } } },
       });
       if (!renta) throw new Error("Renta no encontrada.");
 
@@ -569,6 +577,9 @@ export async function cambiarEstadoRenta(
       if (!apartaInventario(renta.estado) && apartaInventario(nuevoEstado)) {
         if (!renta.direccion.trim()) {
           throw new Error("Captura la dirección antes de confirmar la renta.");
+        }
+        if (esClienteGenerico(renta.cliente)) {
+          throw new Error("Asígnale un cliente antes de confirmar la renta.");
         }
         if (unidadIds.length) {
           const ocupadas = await unidadesNoDisponibles(

@@ -16,6 +16,7 @@ import { ClientesOrden } from "@/components/clientes-orden";
 import { tiposDeEquipoDeRentas, seRento } from "@/lib/rentas";
 import { GRID_CLIENTES } from "@/lib/grids";
 import { cn } from "@/lib/utils";
+import { SIN_CLIENTE_GENERICO } from "@/lib/cliente-generico";
 
 export const dynamic = "force-dynamic";
 
@@ -58,14 +59,17 @@ export default async function ClientesPage({
 
   const telefonoNorm = busqueda ? normalizarTelefono(busqueda) : null;
   const clientes = await prisma.cliente.findMany({
-    where: busqueda
-      ? {
-          OR: [
-            { nombre: { contains: busqueda, mode: "insensitive" } },
-            { telefono: { contains: telefonoNorm ?? busqueda } },
-          ],
-        }
-      : undefined,
+    where: {
+      ...SIN_CLIENTE_GENERICO,
+      ...(busqueda
+        ? {
+            OR: [
+              { nombre: { contains: busqueda, mode: "insensitive" } },
+              { telefono: { contains: telefonoNorm ?? busqueda } },
+            ],
+          }
+        : {}),
+    },
     relationLoadStrategy: "join",
     include: {
       _count: { select: { rentas: true } },

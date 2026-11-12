@@ -56,7 +56,7 @@ export function AltaRenta({
 
   // Qué falta para poder salir de cada paso. El error se pinta dentro del paso
   // visible, no al final del formulario como antes.
-  const validaciones = [form.faltaCliente, form.faltaEquipo, form.faltaDireccion, form.faltaCargos];
+  const validaciones = [form.faltaClientePaso, form.faltaEquipo, form.faltaDireccion, form.faltaCargos];
 
   const [verificando, setVerificando] = useState(false);
 
@@ -80,6 +80,9 @@ export function AltaRenta({
       return;
     }
     form.setError(null);
+    // Sin cliente solo se puede cotizar: se deja el selector del resumen ya en
+    // "Cotización" para que no haya que adivinarlo al final.
+    if (paso === 0 && !form.clienteId) form.setEstado("COTIZADA");
     if (paso < PASOS.length - 1) irAPaso(paso + 1);
     else form.guardar();
   }

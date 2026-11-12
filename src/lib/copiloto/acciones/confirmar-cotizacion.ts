@@ -5,6 +5,7 @@ import { ArgsInvalidos } from "../tool";
 import { cargarRenta, etiquetaEstado, huellaRenta, lineasRenta } from "./renta-comun";
 import { unidadesNoDisponibles } from "@/lib/disponibilidad";
 import { cambiarEstadoRenta } from "@/lib/actions/rentas";
+import { esClienteGenerico } from "@/lib/cliente-generico";
 
 const argsConfirmar = z.strictObject({
   rentaId: z
@@ -36,6 +37,11 @@ export const proponerConfirmarCotizacion = definirAccion({
     if (!r.direccion.trim()) {
       throw new ArgsInvalidos(
         `La cotización de ${r.cliente.nombre} no tiene dirección; hay que capturarla en la app (Editar renta) antes de convertirla.`,
+      );
+    }
+    if (esClienteGenerico(r.cliente)) {
+      throw new ArgsInvalidos(
+        "Esa cotización no tiene cliente asignado; hay que elegirlo en la app (Editar renta) antes de convertirla.",
       );
     }
     const ocupadas = await unidadesNoDisponibles(
