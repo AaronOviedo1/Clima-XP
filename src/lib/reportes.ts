@@ -14,6 +14,7 @@ const reporteSelect = {
   costoDomicilio: true,
   descuentoMonto: true,
   requiereFactura: true,
+  cargoFestivo: true,
   distanciaKm: true,
   cliente: { select: { nombre: true } },
   unidades: {

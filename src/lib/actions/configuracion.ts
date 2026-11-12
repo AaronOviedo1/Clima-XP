@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { esAdmin } from "@/lib/auth-guard";
-import { CLAVE_BODEGA_LAT, CLAVE_BODEGA_LNG } from "@/lib/configuracion";
+import {
+  CLAVE_BODEGA_LAT,
+  CLAVE_BODEGA_LNG,
+  CLAVE_CARGO_FESTIVO,
+  CLAVE_FESTIVOS,
+} from "@/lib/configuracion";
+import { festivoValido, normalizarFestivos } from "@/lib/festivos";
 import { resolverUbicacion } from "@/lib/actions/rentas";
 
 export type ConfigFormState = { ok?: string; error?: string } | undefined;
@@ -162,4 +168,52 @@ export async function quitarBodega(): Promise<ConfigFormState> {
   revalidatePath("/configuracion");
   revalidatePath("/ruta");
   return { ok: "Coordenadas de bodega eliminadas (se usará el env si existe)." };
+}
+
+// ---------- Días festivos ----------
+// Qué días llevan cargo extra y cuánto por equipo (ver lib/festivos.ts). Solo
+// afecta rentas nuevas o que se editen moviendo fechas/equipos: cada renta
+// guarda su cargo (snapshot).
+
+export async function guardarFestivos(
+  _prev: ConfigFormState,
+  formData: FormData,
+): Promise<ConfigFormState> {
+  if (!(await esAdmin())) return SOLO_ADMIN;
+
+  const monto = precioValido(formData.get("monto"));
+  if (monto === null) return { error: "El cargo por equipo debe ser un número entero." };
+
+  let crudas: unknown;
+  try {
+    crudas = JSON.parse(String(formData.get("festivos") ?? "[]"));
+  } catch {
+    return { error: "Lista de días inválida." };
+  }
+  if (!Array.isArray(crudas)) return { error: "Lista de días inválida." };
+  const invalida = crudas.map(String).find((f) => !festivoValido(f));
+  if (invalida) return { error: `Día inválido: ${invalida}.` };
+  const fechas = normalizarFestivos(crudas.map(String));
+
+  await prisma.$transaction([
+    prisma.configuracion.upsert({
+      where: { clave: CLAVE_FESTIVOS },
+      create: { clave: CLAVE_FESTIVOS, valor: JSON.stringify(fechas) },
+      update: { valor: JSON.stringify(fechas) },
+    }),
+    prisma.configuracion.upsert({
+      where: { clave: CLAVE_CARGO_FESTIVO },
+      create: { clave: CLAVE_CARGO_FESTIVO, valor: String(monto) },
+      update: { valor: String(monto) },
+    }),
+  ]);
+
+  revalidatePath("/configuracion");
+  revalidatePath("/rentas/nueva");
+  return {
+    ok:
+      fechas.length === 0 || monto === 0
+        ? "Cargo por día festivo apagado."
+        : "Días festivos guardados. Las rentas ya creadas conservan su cargo.",
+  };
 }

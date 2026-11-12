@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { RentaFormApi } from "@/hooks/use-renta-form";
 import { fechaDesdeInput } from "@/lib/fechas";
+import { etiquetaDiasFestivos } from "@/lib/festivos";
+import { pesos } from "@/lib/dinero";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -93,6 +95,19 @@ export function PasoCliente({ form }: { form: RentaFormApi }) {
             {format(fechaDesdeInput(form.fechaFin), "EEE d MMM", { locale: es })}
           </div>
         </Card>
+
+        {/* Se avisa desde que se eligen las fechas, antes de los equipos, para
+            poder decírselo al cliente al cotizar. En una edición que conserva
+            un cargo de 0 (renta vieja) no sale: no se le va a cobrar. */}
+        {form.festivo.dias.length > 0 &&
+          form.festivo.montoPorEquipo > 0 &&
+          (form.festivo.total > 0 || form.sel.size === 0) && (
+            <p className="rounded-xl bg-chip-ambar px-3.5 py-2.5 text-[13px] font-bold text-chip-ambar-fg">
+              Día festivo ({etiquetaDiasFestivos(form.festivo.dias)}): +
+              {pesos(form.festivo.montoPorEquipo)} por equipo
+              {form.festivo.dias.length > 1 ? " por cada día festivo" : ""}.
+            </p>
+          )}
       </section>
     </div>
   );

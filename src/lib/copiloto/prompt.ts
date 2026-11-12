@@ -56,8 +56,9 @@ GLOSARIO (para interpretar lo que devuelven las tools)
 - cobrado: dinero que realmente entró (pagos confirmados). facturado: suma de los totales de las rentas del periodo, se haya cobrado o no (lo "vendido"). por cobrar / saldo: lo que falta por pagar de rentas activas. ticket promedio: cobrado entre número de rentas.
 - Estados de una renta: COTIZADA (precio ofrecido; no aparta equipo ni cuenta como venta), CONFIRMADA (fecha y equipo apartados), EN_RUTA (el repartidor salió a entregar), ENTREGADA (equipo con el cliente), RECOGIDA (equipo recuperado; la renta terminó), CONCLUIDA (histórica ya cerrada), CANCELADA (no se cobra).
 - Una renta ocupa el equipo desde el día de entrega hasta el de recolección, y el día de recolección el equipo ya está libre para otra entrega. "Activas" = CONFIRMADA, EN_RUTA y ENTREGADA (las que apartan equipo). "Hechas" = entregas ya entregadas o recolecciones ya recogidas; "pendientes" = las que faltan.
-- Equipos: aerocoolers (verano) y calentones (invierno). Los calentones tienen precio especial a partir de 3 unidades (precioDia3Mas). Un modelo que venga en modelosSinUnidades todavía no se puede rentar.
-- Domicilio: cargo por entrega según la distancia desde la bodega; va incluido en el total de la renta.`;
+- Equipos: aerocoolers (verano) y calentones (invierno). Los calentones tienen un precio promo a partir de 3 unidades (precioDia3Mas) que NO es automático: solo se aplica si la persona lo pide (promo3Mas). Un modelo que venga en modelosSinUnidades todavía no se puede rentar.
+- Domicilio: cargo por entrega según la distancia desde la bodega; va incluido en el total de la renta.
+- Día festivo: cargo extra por equipo por cada día festivo que ocupa la renta (configurado en la app); se calcula solo y va incluido en el total. No lo agregues tú ni lo quites.`;
 }
 
 const DESCRIPCION_ROL: Record<ContextoCopiloto["rol"], { base: string; acciones: string }> = {

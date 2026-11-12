@@ -1,13 +1,17 @@
 // Cálculo de renta — función pura compartida entre el formulario (vista previa
 // en vivo) y el servidor (cálculo autoritativo y snapshot de precios).
 //
-// Total = Σ(unidades × precioEfectivo × días) + costoDomicilio
+// Total = Σ(unidades × precioEfectivo × días) + cargoFestivo + costoDomicilio
 //         + Σ(cargos de accesorios) − descuento + IVA (si la renta es "+ IVA")
 //
-// El IVA va sobre todo el precio: equipo, accesorios y servicio a domicilio,
-// ya con el descuento.
+// El IVA va sobre todo el precio: equipo, cargo festivo, accesorios y servicio
+// a domicilio, ya con el descuento.
 //
-// Regla calentones: si la renta lleva 3+ calentones, cada calentón usa precioDia3Mas.
+// Promo calentones: si la renta lleva 3+ calentones Y se activó la promo
+// (`promo3Mas`, renta por renta), cada calentón usa precioDia3Mas.
+//
+// El cargo festivo llega ya calculado (cargoFestivoDe en lib/festivos.ts),
+// porque depende de las fechas y no de los días.
 
 export type TipoEquipoCalc = "AEROCOOLER" | "CALENTON";
 
@@ -24,6 +28,8 @@ export type EntradaCalculo = {
   costoDomicilio: number;
   cargosAccesorios: number;
   descuentoMonto: number;
+  cargoFestivo?: number;
+  promo3Mas?: boolean;
   conIva?: boolean;
 };
 
@@ -33,7 +39,9 @@ export type ResultadoCalculo = {
   dias: number;
   unidades: UnidadConPrecio[];
   aplicaPrecio3Mas: boolean;
+  puedePromo3Mas: boolean; // lleva 3+ calentones: la UI ofrece el interruptor
   subtotalEquipos: number;
+  cargoFestivo: number;
   subtotalAccesorios: number;
   costoDomicilio: number;
   descuentoMonto: number;
@@ -57,7 +65,8 @@ export function ivaDeSubtotal(subtotal: number): number {
 export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
   const dias = Math.max(1, e.dias || 1);
   const numCalentones = e.unidades.filter((u) => u.tipo === "CALENTON").length;
-  const aplicaPrecio3Mas = numCalentones >= UMBRAL_CALENTONES;
+  const puedePromo3Mas = numCalentones >= UMBRAL_CALENTONES;
+  const aplicaPrecio3Mas = puedePromo3Mas && !!e.promo3Mas;
 
   const unidades: UnidadConPrecio[] = e.unidades.map((u) => {
     const precioEfectivo =
@@ -74,10 +83,11 @@ export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
   const subtotalAccesorios = Math.max(0, e.cargosAccesorios || 0);
   const costoDomicilio = Math.max(0, e.costoDomicilio || 0);
   const descuentoMonto = Math.max(0, e.descuentoMonto || 0);
+  const cargoFestivo = Math.max(0, e.cargoFestivo || 0);
 
   const subtotal = Math.max(
     0,
-    subtotalEquipos + subtotalAccesorios + costoDomicilio - descuentoMonto,
+    subtotalEquipos + cargoFestivo + subtotalAccesorios + costoDomicilio - descuentoMonto,
   );
   const iva = e.conIva ? ivaDeSubtotal(subtotal) : 0;
   const total = subtotal + iva;
@@ -86,7 +96,9 @@ export function calcularRenta(e: EntradaCalculo): ResultadoCalculo {
     dias,
     unidades,
     aplicaPrecio3Mas,
+    puedePromo3Mas,
     subtotalEquipos,
+    cargoFestivo,
     subtotalAccesorios,
     costoDomicilio,
     descuentoMonto,

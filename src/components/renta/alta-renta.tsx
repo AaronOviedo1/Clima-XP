@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { useRentaForm } from "@/hooks/use-renta-form";
+import type { ConfigFestivos } from "@/lib/festivos";
 import type { UnidadOpcion } from "@/lib/actions/rentas";
 import type { ClienteOpcion } from "@/components/cliente-combobox";
 import { pesos } from "@/lib/dinero";
@@ -40,17 +41,20 @@ export function AltaRenta({
   unidadesIniciales,
   fechasIniciales,
   clientePreseleccionado,
+  festivos,
 }: {
   clientes: ClienteOpcion[];
   unidadesIniciales: UnidadOpcion[];
   fechasIniciales: { inicio: string; fin: string };
   clientePreseleccionado?: string;
+  festivos: ConfigFestivos;
 }) {
   const form = useRentaForm({
     clientes,
     unidadesIniciales,
     fechasIniciales,
     clientePreseleccionado,
+    festivos,
   });
   const [paso, setPaso] = useState(0);
 

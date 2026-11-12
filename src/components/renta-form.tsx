@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRentaForm, type RentaEdicion } from "@/hooks/use-renta-form";
+import type { ConfigFestivos } from "@/lib/festivos";
 import type { UnidadOpcion } from "@/lib/actions/rentas";
 import type { ClienteOpcion } from "@/components/cliente-combobox";
 import { ESTADOS_CERRADOS, type EstadoRentaStr } from "@/lib/rentas";
@@ -29,12 +30,14 @@ export function RentaForm({
   unidadesIniciales,
   fechasIniciales,
   edicion,
+  festivos,
   enModal = false,
 }: {
   clientes: ClienteOpcion[];
   unidadesIniciales: UnidadOpcion[];
   fechasIniciales: { inicio: string; fin: string };
   edicion: RentaEdicion;
+  festivos: ConfigFestivos;
   enModal?: boolean;
 }) {
   const router = useRouter();
@@ -43,6 +46,7 @@ export function RentaForm({
     unidadesIniciales,
     fechasIniciales,
     edicion,
+    festivos,
     alTerminar: enModal
       ? () => {
           // En pop-up: cerrarlo y volver al detalle, ya actualizado.

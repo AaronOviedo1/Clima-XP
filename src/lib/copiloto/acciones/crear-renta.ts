@@ -9,6 +9,8 @@ import { agruparPedido, cargarCatalogo, normalizar, type ModeloCat } from "./mod
 import { scopeNegocio } from "../contexto";
 import { unidadesDisponibles, unidadesNoDisponibles } from "@/lib/disponibilidad";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
+import { cargoFestivoDe, etiquetaDiasFestivos } from "@/lib/festivos";
+import { obtenerFestivos } from "@/lib/configuracion";
 import { crearRenta, ubicarCompleto, type CrearRentaInput } from "@/lib/actions/rentas";
 import { crearClienteRapido } from "@/lib/actions/clientes";
 import { diasDeRenta, fechaDesdeInput, fechaLarga, sumarDiasInput } from "@/lib/fechas";
@@ -81,6 +83,10 @@ const argsRenta = z.strictObject({
     .boolean()
     .optional()
     .describe("true si la renta es '+ IVA' (el cliente pide factura): suma 16% sobre todo el precio, domicilio incluido. Solo si la persona lo dijo."),
+  promo3Mas: z
+    .boolean()
+    .optional()
+    .describe("true SOLO si la persona pide el precio promo de 3+ calentones (p. ej. 'con la promo', 'a 495'). Sin eso va a precio normal aunque sean 3 o más."),
   notas: z.string().trim().max(500).optional(),
 });
 
@@ -172,7 +178,12 @@ export const proponerRenta = definirAccion({
 
     // 6) Desglose: la misma función pura que el formulario y el servidor.
     const unidadesCalc: UnidadCalc[] = elegidas.map((e) => ({ id: e.id, tipo: e.modelo.tipo, precioDia: e.modelo.precioDia, precioDia3Mas: e.modelo.precioDia3Mas }));
-    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto: a.descuento?.monto ?? 0, conIva: a.requiereFactura ?? false });
+    // Cargo por día festivo: misma cuenta que crearRenta, que lo vuelve a sacar al confirmar.
+    const festivo = cargoFestivoDe(inicio, fin, elegidas.length, await obtenerFestivos());
+    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto: a.descuento?.monto ?? 0, cargoFestivo: festivo.total, promo3Mas: a.promo3Mas ?? false, conIva: a.requiereFactura ?? false });
+    if (a.promo3Mas && !calc.aplicaPrecio3Mas) {
+      throw new ArgsInvalidos("La promo de 3+ solo aplica con 3 o más calentones; quítala o ajusta el pedido.");
+    }
     if (a.descuento && a.descuento.monto >= calc.subtotalEquipos + costoDomicilio) {
       throw new ArgsInvalidos(`El descuento ${pesos(a.descuento.monto)} es igual o mayor que el importe (${pesos(calc.subtotalEquipos + costoDomicilio)}); confírmalo.`);
     }
@@ -199,6 +210,7 @@ export const proponerRenta = definirAccion({
       descuentoMonto: a.descuento?.monto ?? 0,
       descuentoNota: a.descuento?.nota ?? null,
       requiereFactura: a.requiereFactura ?? false,
+      promo3Mas: calc.aplicaPrecio3Mas,
       anticipo: a.anticipo ?? null,
       notas: [notaDomicilio, a.notas].filter(Boolean).join(" · ") || null,
     };
@@ -211,7 +223,7 @@ export const proponerRenta = definirAccion({
     const porModelo = [...pedido.values()].map(({ modelo, cantidad }) => {
       const idsModelo = new Set(elegidas.filter((e) => e.modelo.id === modelo.id).map((e) => e.id));
       const precio = calc.unidades.find((u) => idsModelo.has(u.id))?.precioEfectivo ?? modelo.precioDia;
-      return { etiqueta: `${cantidad} × ${modelo.nombre}`, valor: `${pesos(precio)}/día × ${dias} día(s) = ${pesos(precio * dias * cantidad)}${calc.aplicaPrecio3Mas && modelo.tipo === "CALENTON" ? " (precio 3+)" : ""}` };
+      return { etiqueta: `${cantidad} × ${modelo.nombre}`, valor: `${pesos(precio)}/día × ${dias} día(s) = ${pesos(precio * dias * cantidad)}${calc.aplicaPrecio3Mas && modelo.tipo === "CALENTON" ? " (promo 3+)" : ""}` };
     });
     const lineas: LineaResumen[] = [
       { etiqueta: "Tipo", valor: a.estado === "COTIZADA" ? "Cotización (no aparta equipo)" : "Renta confirmada (aparta equipo)" },
@@ -231,6 +243,7 @@ export const proponerRenta = definirAccion({
         : { etiqueta: "Dirección", valor: "sin dirección (cotización)" },
       ...(ubicadaComo && normalizar(ubicadaComo) !== normalizar(a.direccion ?? "") ? [{ etiqueta: "Ubicada como", valor: recortar(ubicadaComo, 80) }] : []),
       { etiqueta: "Domicilio", valor: a.direccion ? `${distanciaKm != null ? `${distanciaKm} km · ` : ""}${pesos(costoDomicilio)}${notaDomicilio ? ` (${notaDomicilio})` : ""}` : pesos(0) },
+      ...(calc.cargoFestivo > 0 ? [{ etiqueta: "Día festivo", valor: `${etiquetaDiasFestivos(festivo.dias)} · ${festivo.numEquipos} equipo(s) × ${pesos(festivo.montoPorEquipo)} = ${pesos(calc.cargoFestivo)}` }] : []),
       ...(a.descuento ? [{ etiqueta: "Descuento", valor: `${pesos(a.descuento.monto)} · ${a.descuento.nota}` }] : []),
       { etiqueta: "Total", valor: pesos(calc.total) },
       ...(a.anticipo ? [{ etiqueta: "Anticipo", valor: `${pesos(a.anticipo.monto)} · ${a.anticipo.metodo}` }, { etiqueta: "Saldo", valor: pesos(saldo) }] : []),

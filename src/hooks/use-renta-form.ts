@@ -17,6 +17,7 @@ import {
 } from "@/lib/actions/rentas";
 import type { SugerenciaDireccion } from "@/lib/google-maps";
 import { calcularRenta } from "@/lib/renta-calculo";
+import { cargoFestivoDe, type ConfigFestivos } from "@/lib/festivos";
 import { diasDeRenta, fechaDesdeInput } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
 import type { ClienteOpcion } from "@/components/cliente-combobox";
@@ -54,6 +55,10 @@ export type RentaEdicion = {
     descuentoMonto: number;
     descuentoNota: string;
     requiereFactura: boolean;
+    promo3Mas: boolean;
+    // Cargo festivo guardado: se conserva mientras no cambien fechas ni
+    // equipos (ver editarRenta en actions/rentas.ts).
+    cargoFestivo: number;
     notas: string;
   };
 };
@@ -77,6 +82,7 @@ export function useRentaForm({
   fechasIniciales,
   clientePreseleccionado,
   edicion,
+  festivos,
   alTerminar,
 }: {
   clientes: ClienteOpcion[];
@@ -84,6 +90,8 @@ export function useRentaForm({
   fechasIniciales: { inicio: string; fin: string };
   clientePreseleccionado?: string;
   edicion?: RentaEdicion;
+  // Días festivos y cargo por equipo (config de /configuracion).
+  festivos: ConfigFestivos;
   // Qué hacer cuando se guardó bien (navegar al detalle, cerrar el pop-up…).
   alTerminar?: (rentaId: string) => void;
 }) {
@@ -135,6 +143,7 @@ export function useRentaForm({
   const [descuentoMonto, setDescuentoMonto] = useState(ini?.descuentoMonto ?? 0);
   const [descuentoNota, setDescuentoNota] = useState(ini?.descuentoNota ?? "");
   const [requiereFactura, setRequiereFactura] = useState(ini?.requiereFactura ?? false);
+  const [promo3Mas, setPromo3Mas] = useState(ini?.promo3Mas ?? false);
 
   const [anticipoMonto, setAnticipoMonto] = useState(0);
   const [anticipoMetodo, setAnticipoMetodo] = useState("EFECTIVO");
@@ -430,6 +439,27 @@ export function useRentaForm({
   );
   const dias = diasDeRenta(fechaDesdeInput(fechaInicio), fechaDesdeInput(fechaFin));
 
+  // Cargo por día festivo: misma cuenta que el servidor (crearRenta/editarRenta),
+  // que es quien decide al guardar. En edición, si no se movieron fechas ni
+  // equipos se conserva el guardado: corregir la dirección de una renta vieja
+  // del 24 de diciembre no le debe agregar un cargo que nunca se cobró.
+  const festivo = useMemo(() => {
+    const calculado = cargoFestivoDe(
+      fechaDesdeInput(fechaInicio),
+      fechaDesdeInput(fechaFin),
+      sel.size,
+      festivos,
+    );
+    if (!ini) return calculado;
+    const mismasFechas =
+      fechaInicio === fechasIniciales.inicio && fechaFin === fechasIniciales.fin;
+    const mismasUnidades =
+      sel.size === ini.unidadIds.length && ini.unidadIds.every((id) => sel.has(id));
+    return mismasFechas && mismasUnidades
+      ? { ...calculado, total: ini.cargoFestivo }
+      : calculado;
+  }, [fechaInicio, fechaFin, sel, festivos, ini, fechasIniciales]);
+
   // Los accesorios no se cotizan aquí: se saben hasta la entrega y no tienen
   // costo (ver marcarEntregada en actions/rentas.ts).
   const calc = useMemo(
@@ -445,9 +475,19 @@ export function useRentaForm({
         costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto,
+        cargoFestivo: festivo.total,
+        promo3Mas,
         conIva: requiereFactura,
       }),
-    [unidadesSeleccionadas, dias, costoDomicilio, descuentoMonto, requiereFactura],
+    [
+      unidadesSeleccionadas,
+      dias,
+      costoDomicilio,
+      descuentoMonto,
+      festivo.total,
+      promo3Mas,
+      requiereFactura,
+    ],
   );
 
   // ---------- Validación ----------
@@ -521,6 +561,8 @@ export function useRentaForm({
         descuentoMonto,
         descuentoNota: descuentoNota || null,
         requiereFactura,
+        // Solo cuenta con 3+ calentones; si se quitaron, se guarda apagada.
+        promo3Mas: promo3Mas && calc.puedePromo3Mas,
         notas: notaCompleta || null,
       };
 
@@ -613,6 +655,9 @@ export function useRentaForm({
     setDescuentoNota,
     requiereFactura,
     setRequiereFactura,
+    promo3Mas,
+    setPromo3Mas,
+    festivo,
     anticipoMonto,
     setAnticipoMonto,
     anticipoMetodo,

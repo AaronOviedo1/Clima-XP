@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { SIN_CLIENTE_GENERICO, esClienteGenerico } from "@/lib/cliente-generico";
 import { inputDesdeFecha } from "@/lib/fechas";
 import { unidadesParaFechas, type UnidadOpcion } from "@/lib/actions/rentas";
+import { obtenerFestivos } from "@/lib/configuracion";
 import { UNIDADES_BLOQUEADAS, type EstadoRentaStr } from "@/lib/rentas";
 import { RentaForm } from "@/components/renta-form";
 
@@ -31,13 +32,14 @@ export async function RentaEditar({
   const inicio = inputDesdeFecha(renta.fechaInicio);
   const fin = inputDesdeFecha(renta.fechaFin);
 
-  const [clientes, disponibles] = await Promise.all([
+  const [clientes, disponibles, festivos] = await Promise.all([
     prisma.cliente.findMany({
       where: SIN_CLIENTE_GENERICO,
       select: { id: true, nombre: true, telefono: true },
       orderBy: { nombre: "asc" },
     }),
     unidadesParaFechas(inicio, fin, renta.id),
+    obtenerFestivos(),
   ]);
 
   // Las unidades ya asignadas siempre se muestran, aunque hoy estén en
@@ -62,6 +64,7 @@ export async function RentaEditar({
       unidadesIniciales={opciones}
       fechasIniciales={{ inicio, fin }}
       enModal={enModal}
+      festivos={festivos}
       edicion={{
         rentaId: renta.id,
         estado: renta.estado as EstadoRentaStr,
@@ -86,6 +89,8 @@ export async function RentaEditar({
           descuentoMonto: renta.descuentoMonto,
           descuentoNota: renta.descuentoNota ?? "",
           requiereFactura: renta.requiereFactura,
+          promo3Mas: renta.promo3Mas,
+          cargoFestivo: renta.cargoFestivo,
           notas: renta.notas ?? "",
         },
       }}

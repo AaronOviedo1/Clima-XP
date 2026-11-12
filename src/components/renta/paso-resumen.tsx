@@ -6,6 +6,7 @@ import { Calendar, MapPin, Truck, User } from "lucide-react";
 import type { RentaFormApi } from "@/hooks/use-renta-form";
 import { fechaDesdeInput } from "@/lib/fechas";
 import { pesos } from "@/lib/dinero";
+import { etiquetaDiasFestivos } from "@/lib/festivos";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -111,6 +112,12 @@ export function PasoResumen({
       <Card className="gap-0 py-0">
         <div className="space-y-1.5 px-4 py-3.5">
           <Fila label={`Equipos · ${form.dias}d`} value={pesos(form.calc.subtotalEquipos)} />
+          {form.calc.cargoFestivo > 0 && (
+            <Fila
+              label={`Día festivo (${etiquetaDiasFestivos(form.festivo.dias)})`}
+              value={pesos(form.calc.cargoFestivo)}
+            />
+          )}
           {form.calc.costoDomicilio > 0 && (
             <Fila label="Domicilio" value={pesos(form.calc.costoDomicilio)} />
           )}

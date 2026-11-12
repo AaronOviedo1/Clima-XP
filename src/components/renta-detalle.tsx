@@ -253,7 +253,11 @@ export function RentaDetalle({
       {/* Desglose */}
       <Colapsable titulo="Cuenta">
         <div className="space-y-2">
-          <Fila label={`Equipos (${t.dias}d)`} value={pesos(t.subtotalEquipos)} />
+          <Fila
+            label={`Equipos (${t.dias}d)${renta.promo3Mas ? " · promo 3+" : ""}`}
+            value={pesos(t.subtotalEquipos)}
+          />
+          {t.cargoFestivo > 0 && <Fila label="Día festivo" value={pesos(t.cargoFestivo)} />}
           {t.subtotalAccesorios > 0 && (
             <Fila label="Accesorios" value={pesos(t.subtotalAccesorios)} />
           )}

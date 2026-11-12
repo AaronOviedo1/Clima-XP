@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { ExternalLink, Flame, Trash2, Wind } from "lucide-react";
+import { ExternalLink, Flame, Trash2, Wind, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   agregarTarifa,
   eliminarTarifa,
   guardarBodega,
+  guardarFestivos,
   guardarPrecios,
   guardarTarifas,
   quitarBodega,
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { etiquetaFestivo, normalizarFestivos, type ConfigFestivos } from "@/lib/festivos";
 
 function Guardar({ texto = "Guardar" }: { texto?: string }) {
   const { pending } = useFormStatus();
@@ -96,7 +98,7 @@ export function PreciosForm({ modelos }: { modelos: ModeloPrecio[] }) {
             </div>
             <div className="space-y-1">
               <Label htmlFor={`precioDia3Mas-${m.id}`} className="text-xs text-muted-foreground">
-                Con 3+ unidades ($)
+                Promo 3+ unidades ($)
               </Label>
               <Input
                 id={`precioDia3Mas-${m.id}`}
@@ -115,6 +117,7 @@ export function PreciosForm({ modelos }: { modelos: ModeloPrecio[] }) {
       ))}
       <p className="text-xs text-muted-foreground">
         Los cambios solo afectan rentas nuevas: cada renta guarda su precio al momento de crearse.
+        El precio promo de 3+ no se aplica solo: se prende en cada renta, en el paso de Equipos.
       </p>
       <Mensaje state={state} />
       <Guardar texto="Guardar precios" />
@@ -289,5 +292,92 @@ export function BodegaForm({
         </div>
       </form>
     </div>
+  );
+}
+
+// ---------- Días festivos ----------
+
+export function FestivosForm({ festivos }: { festivos: ConfigFestivos }) {
+  const [state, formAction] = useActionState<ConfigFormState, FormData>(
+    guardarFestivos,
+    undefined,
+  );
+  useToastConfig(state);
+  const [fechas, setFechas] = useState<string[]>(festivos.fechas);
+  const [nueva, setNueva] = useState("");
+
+  // El selector nativo de fecha trae año, pero el festivo vale todos los años:
+  // solo se toma mes-día.
+  function agregar() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nueva)) return;
+    setFechas((prev) => normalizarFestivos([...prev, nueva.slice(5)]));
+    setNueva("");
+  }
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <input type="hidden" name="festivos" value={JSON.stringify(fechas)} />
+      <div className="space-y-1">
+        <Label htmlFor="monto-festivo" className="text-xs text-muted-foreground">
+          Cargo por equipo, por cada día festivo ($)
+        </Label>
+        <Input
+          id="monto-festivo"
+          name="monto"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          required
+          defaultValue={festivos.montoPorEquipo}
+          className="h-11"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Días festivos (cada año)</Label>
+        {fechas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Sin días: no se cobra cargo festivo.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {fechas.map((f) => (
+              <span
+                key={f}
+                className="flex h-9 items-center gap-1 rounded-full bg-chip-ambar pr-1 pl-3 text-[13px] font-bold text-chip-ambar-fg"
+              >
+                {etiquetaFestivo(f)}
+                <button
+                  type="button"
+                  aria-label={`Quitar ${etiquetaFestivo(f)}`}
+                  onClick={() => setFechas((prev) => prev.filter((x) => x !== f))}
+                  className="flex size-7 items-center justify-center rounded-full"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Input
+            type="date"
+            aria-label="Agregar día festivo"
+            value={nueva}
+            onChange={(e) => setNueva(e.target.value)}
+            className="h-11 flex-1"
+          />
+          <Button type="button" variant="outline" className="h-11" onClick={agregar} disabled={!nueva}>
+            Agregar
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Se cobra por cada día festivo que la renta ocupa (el día de recolección no cuenta: del 24
+        al 25 es un festivo). Las rentas ya creadas conservan su cargo.
+      </p>
+      <Mensaje state={state} />
+      <Guardar texto="Guardar días festivos" />
+    </form>
   );
 }

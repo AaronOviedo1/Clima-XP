@@ -39,6 +39,7 @@ export function altoDocumento(hoja: HojaCotizacion): number {
   );
   const totalEquipos = ALTO_FILA + 24;
   const renglones =
+    (hoja.cargoFestivo > 0 ? 1 : 0) +
     (hoja.costoDomicilio > 0 ? 1 : 0) +
     (hoja.descuentoMonto > 0 ? 1 : 0) +
     (hoja.iva != null ? 1 : 0) +
@@ -227,6 +228,20 @@ export function DocumentoCotizacion({
       </div>
 
       {/* Cargos: solo salen los que aplican a esta renta */}
+      {hoja.cargoFestivo > 0 && (
+        <Fila>
+          <Celda
+            texto="DÍA FESTIVO"
+            w={ancho(COL.equipo)}
+            fondo={AMBAR_CELDA}
+            fuerte
+            tamano={18}
+            sub={hoja.diasFestivo ?? undefined}
+          />
+          <Celda texto={pesos(hoja.cargoFestivo)} fondo={AMBAR_CELDA} crece />
+        </Fila>
+      )}
+
       {hoja.costoDomicilio > 0 && (
         <Fila>
           <Celda

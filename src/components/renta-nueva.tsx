@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { SIN_CLIENTE_GENERICO } from "@/lib/cliente-generico";
 import { hoyNegocio, sumarDiasInput } from "@/lib/fechas";
 import { unidadesParaFechas } from "@/lib/actions/rentas";
+import { obtenerFestivos } from "@/lib/configuracion";
 import { AltaRenta } from "@/components/renta/alta-renta";
 
 /**
@@ -18,13 +19,14 @@ export async function RentaNueva({
   const inicio = hoyNegocio();
   const fin = sumarDiasInput(inicio, 1);
 
-  const [clientes, unidadesIniciales] = await Promise.all([
+  const [clientes, unidadesIniciales, festivos] = await Promise.all([
     prisma.cliente.findMany({
       where: SIN_CLIENTE_GENERICO,
       select: { id: true, nombre: true, telefono: true },
       orderBy: { nombre: "asc" },
     }),
     unidadesParaFechas(inicio, fin),
+    obtenerFestivos(),
   ]);
 
   return (
@@ -33,6 +35,7 @@ export async function RentaNueva({
       unidadesIniciales={unidadesIniciales}
       fechasIniciales={{ inicio, fin }}
       clientePreseleccionado={clientePreseleccionado}
+      festivos={festivos}
     />
   );
 }

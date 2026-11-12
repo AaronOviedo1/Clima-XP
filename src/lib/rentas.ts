@@ -23,6 +23,7 @@ const rentaListaScalars = {
   costoDomicilio: true,
   descuentoMonto: true,
   requiereFactura: true,
+  cargoFestivo: true,
 } satisfies Prisma.RentaSelect;
 
 // El modelo de cada unidad se trae para poder decir QUÉ se rentó, no solo cuántos.
@@ -71,6 +72,7 @@ export type RentaParaTotales = {
   fechaFin: Date;
   costoDomicilio: number;
   descuentoMonto: number;
+  cargoFestivo: number; // snapshot del cargo por día festivo (lib/festivos.ts)
   requiereFactura: boolean; // "+ IVA": el total lleva 16% encima
   unidades: { precioDia: number }[];
   accesorios: { cargo: number }[];
@@ -111,6 +113,7 @@ export function tiposDeEquipoDeRentas(
 export type TotalesRenta = {
   dias: number;
   subtotalEquipos: number;
+  cargoFestivo: number;
   subtotalAccesorios: number;
   costoDomicilio: number;
   descuentoMonto: number;
@@ -139,6 +142,7 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
   const subtotal = Math.max(
     0,
     subtotalEquipos +
+      renta.cargoFestivo +
       subtotalAccesorios +
       renta.costoDomicilio -
       renta.descuentoMonto,
@@ -158,6 +162,7 @@ export function totalesDeRenta(renta: RentaParaTotales): TotalesRenta {
   return {
     dias,
     subtotalEquipos,
+    cargoFestivo: renta.cargoFestivo,
     subtotalAccesorios,
     costoDomicilio: renta.costoDomicilio,
     descuentoMonto: renta.descuentoMonto,

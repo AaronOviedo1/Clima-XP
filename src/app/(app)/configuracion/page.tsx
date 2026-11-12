@@ -1,9 +1,11 @@
 import { ChevronDown, MapPin, MessageCircle } from "lucide-react";
 import { datosConfiguracion } from "@/lib/configuracion";
 import { pesos } from "@/lib/dinero";
+import { etiquetaDiasFestivos } from "@/lib/festivos";
 import {
   AgregarTarifaForm,
   BodegaForm,
+  FestivosForm,
   PreciosForm,
   TarifasForm,
 } from "@/components/configuracion-forms";
@@ -49,7 +51,7 @@ function TarjetaEditable({
 }
 
 export default async function ConfiguracionPage() {
-  const { modelos, tarifas, bodega } = await datosConfiguracion();
+  const { modelos, tarifas, bodega, festivos } = await datosConfiguracion();
 
   const costos = tarifas.map((t) => t.costo);
   const tarifaMin = costos.length ? Math.min(...costos) : null;
@@ -96,6 +98,30 @@ export default async function ConfiguracionPage() {
             numUnidades: m._count.unidades,
           }))}
         />
+      </TarjetaEditable>
+
+      {/* Días festivos */}
+      <Rotulo>Días festivos</Rotulo>
+      <TarjetaEditable
+        resumen={
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[14.5px] font-semibold">Cargo por equipo</span>
+              <span className="text-[14.5px] font-extrabold tabular-nums">
+                {festivos.fechas.length > 0 && festivos.montoPorEquipo > 0
+                  ? `+${pesos(festivos.montoPorEquipo)} por día`
+                  : "Apagado"}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              {festivos.fechas.length > 0
+                ? etiquetaDiasFestivos(festivos.fechas)
+                : "Sin días festivos."}
+            </p>
+          </div>
+        }
+      >
+        <FestivosForm festivos={festivos} />
       </TarjetaEditable>
 
       {/* Tarifa de domicilio */}

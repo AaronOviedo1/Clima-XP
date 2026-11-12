@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { diasDeRenta, fechaConMes } from "@/lib/fechas";
 import { ivaDeSubtotal } from "@/lib/renta-calculo";
+import { obtenerFestivos } from "@/lib/configuracion";
+import { diasFestivosDeRenta, etiquetaDiasFestivos } from "@/lib/festivos";
 
 // Datos de la hoja de cotización que se le manda al cliente (ver
 // /api/cotizacion, que los pinta como imagen). Sale de cualquier renta, esté
@@ -30,6 +32,10 @@ export type HojaCotizacion = {
   dias: number;
   grupos: GrupoCotizacion[];
   subtotalEquipos: number;
+  cargoFestivo: number;
+  // "24 DIC" / "24 DIC Y 31 DIC"; null si con la lista de festivos de hoy ya no
+  // se reconoce el día (el monto es snapshot, la etiqueta no).
+  diasFestivo: string | null;
   costoDomicilio: number;
   descuentoMonto: number;
   descuentoPct: string | null; // "20%" / "35.8%"
@@ -102,6 +108,7 @@ export async function datosDesdeRenta(rentaId: string): Promise<HojaCotizacion |
       costoDomicilio: true,
       descuentoMonto: true,
       requiereFactura: true,
+      cargoFestivo: true,
       unidades: {
         select: {
           precioDia: true,
@@ -123,12 +130,19 @@ export async function datosDesdeRenta(rentaId: string): Promise<HojaCotizacion |
     .flatMap((g) => g.lineas)
     .reduce((acc, l) => acc + l.importe, 0);
 
-  // Mismo orden que la hoja: equipos + domicilio − descuento, y el IVA sobre
-  // eso (solo si la renta es "+ IVA").
+  // Mismo orden que la hoja: equipos + día festivo + domicilio − descuento, y
+  // el IVA sobre eso (solo si la renta es "+ IVA").
   const subtotalConDescuento = Math.max(
     0,
-    subtotalEquipos + renta.costoDomicilio - renta.descuentoMonto,
+    subtotalEquipos + renta.cargoFestivo + renta.costoDomicilio - renta.descuentoMonto,
   );
+
+  let diasFestivo: string | null = null;
+  if (renta.cargoFestivo > 0) {
+    const { fechas } = await obtenerFestivos();
+    const dias = diasFestivosDeRenta(renta.fechaInicio, renta.fechaFin, fechas);
+    diasFestivo = dias.length > 0 ? etiquetaDiasFestivos(dias).toUpperCase() : null;
+  }
   const iva = renta.requiereFactura ? ivaDeSubtotal(subtotalConDescuento) : null;
 
   return {
@@ -136,6 +150,8 @@ export async function datosDesdeRenta(rentaId: string): Promise<HojaCotizacion |
     dias,
     grupos,
     subtotalEquipos,
+    cargoFestivo: renta.cargoFestivo,
+    diasFestivo,
     costoDomicilio: renta.costoDomicilio,
     descuentoMonto: renta.descuentoMonto,
     // El porcentaje se saca sobre el equipo, que es sobre lo que se descuenta

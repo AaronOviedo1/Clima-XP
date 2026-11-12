@@ -10,6 +10,8 @@ import { agruparPedido, cargarCatalogo, normalizar } from "./modelos-comun";
 import { etiquetaEstado } from "./renta-comun";
 import { unidadesDisponibles, unidadesNoDisponibles } from "@/lib/disponibilidad";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
+import { cargoFestivoDe, etiquetaDiasFestivos } from "@/lib/festivos";
+import { obtenerFestivos } from "@/lib/configuracion";
 import { editarRenta, ubicarCompleto, type EditarRentaInput } from "@/lib/actions/rentas";
 import {
   apartaInventario,
@@ -89,6 +91,10 @@ const argsEditar = z.strictObject({
     .boolean()
     .optional()
     .describe("Pone o quita el '+ IVA' de la renta: 16% sobre todo el precio, domicilio incluido."),
+  promo3Mas: z
+    .boolean()
+    .optional()
+    .describe("Pone o quita el precio promo de 3+ calentones. Solo si la persona lo pide; requiere 3 o más calentones."),
   agregarNota: z
     .string()
     .trim()
@@ -122,6 +128,8 @@ const rentaEdicionSelect = {
   descuentoMonto: true,
   descuentoNota: true,
   requiereFactura: true,
+  cargoFestivo: true,
+  promo3Mas: true,
   notas: true,
   cliente: { select: { nombre: true, telefono: true } },
   unidades: {
@@ -185,11 +193,12 @@ export const proponerEditarRenta = definirAccion({
       a.ventanaEntrega,
       a.lugar,
       a.requiereFactura,
+      a.promo3Mas,
       a.agregarNota,
     ].filter((v) => v !== undefined).length;
     if (campos === 0) {
       throw new ArgsInvalidos(
-        "Indica qué cambiar: fechaInicio/fechaFin, direccion, costoDomicilio, equipos, descuento, ventanaEntrega, lugar, requiereFactura o agregarNota.",
+        "Indica qué cambiar: fechaInicio/fechaFin, direccion, costoDomicilio, equipos, descuento, ventanaEntrega, lugar, requiereFactura, promo3Mas o agregarNota.",
       );
     }
     if (a.equipos && UNIDADES_BLOQUEADAS.includes(r.estado as EstadoRentaStr)) {
@@ -305,16 +314,25 @@ export const proponerEditarRenta = definirAccion({
     if ((lugar ?? "") !== (r.lugar ?? "")) cambiados.push("lugar");
     const requiereFactura = a.requiereFactura ?? r.requiereFactura;
     if (requiereFactura !== r.requiereFactura) cambiados.push("IVA");
+    const promoPedida = a.promo3Mas ?? r.promo3Mas;
     const notas = a.agregarNota ? [r.notas, a.agregarNota].filter(Boolean).join(" · ") : r.notas;
     if (a.agregarNota) cambiados.push("nota");
 
+    // Desglose nuevo con la misma función pura que el formulario y el servidor.
+    const unidadesCalc: UnidadCalc[] = elegidas.map((e) => ({ id: e.id, tipo: e.modelo.tipo, precioDia: e.modelo.precioDia, precioDia3Mas: e.modelo.precioDia3Mas }));
+    // Cargo festivo: misma regla que editarRenta — se recalcula si cambian
+    // fechas o equipo; si no, se conserva el guardado.
+    const festivo = cargoFestivoDe(inicio, fin, elegidas.length, await obtenerFestivos());
+    const cargoFestivo = cambiaFechas || cambiaEquipo ? festivo.total : r.cargoFestivo;
+    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto, cargoFestivo, promo3Mas: promoPedida, conIva: requiereFactura });
+    if (a.promo3Mas && !calc.puedePromo3Mas) {
+      throw new ArgsInvalidos("La promo de 3+ solo aplica con 3 o más calentones.");
+    }
+    const promo3Mas = calc.aplicaPrecio3Mas;
+    if (promo3Mas !== r.promo3Mas) cambiados.push("promo 3+");
     if (cambiados.length === 0) {
       throw new ArgsInvalidos("Los valores que mandas son los que ya tiene la renta; no hay nada que cambiar.");
     }
-
-    // Desglose nuevo con la misma función pura que el formulario y el servidor.
-    const unidadesCalc: UnidadCalc[] = elegidas.map((e) => ({ id: e.id, tipo: e.modelo.tipo, precioDia: e.modelo.precioDia, precioDia3Mas: e.modelo.precioDia3Mas }));
-    const calc = calcularRenta({ unidades: unidadesCalc, dias, costoDomicilio, cargosAccesorios: 0, descuentoMonto, conIva: requiereFactura });
     if (descuentoMonto > 0 && descuentoMonto >= calc.subtotalEquipos + costoDomicilio) {
       throw new ArgsInvalidos(`El descuento ${pesos(descuentoMonto)} es igual o mayor que el importe (${pesos(calc.subtotalEquipos + costoDomicilio)}); confírmalo.`);
     }
@@ -340,6 +358,7 @@ export const proponerEditarRenta = definirAccion({
       descuentoMonto,
       descuentoNota,
       requiereFactura,
+      promo3Mas,
       notas,
     };
 
@@ -374,6 +393,10 @@ export const proponerEditarRenta = definirAccion({
       ...((ventanaEntrega ?? "") !== (r.ventanaEntrega ?? "") ? [{ etiqueta: "Ventana", valor: flecha(r.ventanaEntrega || "—", ventanaEntrega || "—") }] : []),
       ...((lugar ?? "") !== (r.lugar ?? "") ? [{ etiqueta: "Lugar", valor: flecha(r.lugar || "—", lugar || "—") }] : []),
       ...(requiereFactura !== r.requiereFactura ? [{ etiqueta: "+ IVA", valor: flecha(r.requiereFactura ? "sí" : "no", requiereFactura ? `sí (${pesos(calc.iva)})` : "no") }] : []),
+      ...(promo3Mas !== r.promo3Mas ? [{ etiqueta: "Promo 3+", valor: flecha(r.promo3Mas ? "sí" : "no", promo3Mas ? "sí" : "no") }] : []),
+      ...(cargoFestivo > 0 || r.cargoFestivo > 0
+        ? [{ etiqueta: "Día festivo", valor: flecha(pesos(r.cargoFestivo), cargoFestivo > 0 && festivo.dias.length > 0 && cargoFestivo === festivo.total ? `${pesos(cargoFestivo)} (${etiquetaDiasFestivos(festivo.dias)})` : pesos(cargoFestivo)) }]
+        : []),
       ...(a.agregarNota ? [{ etiqueta: "Nota que se agrega", valor: recortar(a.agregarNota, 100) }] : []),
       { etiqueta: "Total", valor: flecha(pesos(antes.total), pesos(calc.total)) },
       ...(antes.pagadoConfirmado > 0 ? [{ etiqueta: "Pagado", valor: pesos(antes.pagadoConfirmado) }] : []),

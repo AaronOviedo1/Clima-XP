@@ -6,7 +6,7 @@ import { z } from "zod";
 import type { EstadoRenta } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { esClienteGenerico, idClienteGenerico } from "@/lib/cliente-generico";
-import { fechaDesdeInput, diasDeRenta } from "@/lib/fechas";
+import { fechaDesdeInput, diasDeRenta, inputDesdeFecha } from "@/lib/fechas";
 import { calcularRenta, type UnidadCalc } from "@/lib/renta-calculo";
 import {
   unidadesDisponibles,
@@ -42,7 +42,8 @@ import {
   type SugerenciaDireccion,
 } from "@/lib/google-maps";
 import { areaDeSugerencias, motivoFueraDeCobertura } from "@/lib/cobertura";
-import { obtenerBodega } from "@/lib/configuracion";
+import { obtenerBodega, obtenerFestivos } from "@/lib/configuracion";
+import { cargoFestivoDe } from "@/lib/festivos";
 import { notificarPastaStats, pagoParaExportar } from "@/lib/integracion";
 
 // Sugerencia de costo de domicilio por km (para el formulario de renta).
@@ -261,6 +262,9 @@ const crearSchema = z.object({
   descuentoMonto: z.number().int().nonnegative().default(0),
   descuentoNota: z.string().trim().optional().nullable(),
   requiereFactura: z.boolean().default(false),
+  // Precio promo de 3+ calentones (precioDia3Mas). Apagada por default: el
+  // dueño la prende renta por renta cuando el fin de semana lo amerita.
+  promo3Mas: z.boolean().default(false),
   anticipo: z
     .object({
       monto: z.number().int().positive(),
@@ -314,6 +318,7 @@ export async function crearRenta(
   }
   const fuera = await fueraDeCobertura(d);
   if (fuera) return { error: fuera };
+  const configFestivos = await obtenerFestivos();
 
   try {
     let aviso: string | undefined;
@@ -346,12 +351,17 @@ export async function crearRenta(
       }));
 
       // Los accesorios se capturan hasta la entrega (marcarEntregada), sin costo.
+      // El cargo festivo lo calcula siempre el servidor con la config vigente:
+      // el cliente nunca manda el monto.
+      const festivo = cargoFestivoDe(inicio, fin, unidades.length, configFestivos);
       const calc = calcularRenta({
         unidades: unidadesCalc,
         dias: diasDeRenta(inicio, fin),
         costoDomicilio: d.costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto: d.descuentoMonto,
+        cargoFestivo: festivo.total,
+        promo3Mas: d.promo3Mas,
         conIva: d.requiereFactura,
       });
       const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
@@ -375,6 +385,8 @@ export async function crearRenta(
           descuentoMonto: d.descuentoMonto,
           descuentoNota: d.descuentoNota || null,
           requiereFactura: d.requiereFactura,
+          cargoFestivo: calc.cargoFestivo,
+          promo3Mas: calc.aplicaPrecio3Mas,
           notas: d.notas || null,
           unidades: {
             create: unidades.map((u) => ({
@@ -431,6 +443,7 @@ export async function editarRenta(
   }
   const fuera = await fueraDeCobertura(d);
   if (fuera) return { error: fuera };
+  const configFestivos = await obtenerFestivos();
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -483,12 +496,26 @@ export async function editarRenta(
         precioDia3Mas: u.modelo.precioDia3Mas,
       }));
       // Los accesorios se capturan hasta la entrega (marcarEntregada), sin costo.
+      // El cargo festivo se recalcula con la config vigente si cambian fechas o
+      // equipos (mover la renta al 24 de diciembre lo agrega, sacarla lo quita).
+      // Si no, se conserva el guardado: corregir la dirección de una renta vieja
+      // del 24 de diciembre no le debe agregar un cargo que nunca se cobró. El
+      // formulario hace la misma cuenta en use-renta-form.
+      const mismasFechas =
+        inputDesdeFecha(renta.fechaInicio) === d.fechaInicio &&
+        inputDesdeFecha(renta.fechaFin) === d.fechaFin;
+      const cargoFestivo =
+        mismasFechas && mismasUnidades
+          ? renta.cargoFestivo
+          : cargoFestivoDe(inicio, fin, unidades.length, configFestivos).total;
       const calc = calcularRenta({
         unidades: unidadesCalc,
         dias: diasDeRenta(inicio, fin),
         costoDomicilio: d.costoDomicilio,
         cargosAccesorios: 0,
         descuentoMonto: d.descuentoMonto,
+        cargoFestivo,
+        promo3Mas: d.promo3Mas,
         conIva: d.requiereFactura,
       });
       const precioPorUnidad = new Map(calc.unidades.map((u) => [u.id, u.precioEfectivo]));
@@ -516,6 +543,8 @@ export async function editarRenta(
           descuentoMonto: d.descuentoMonto,
           descuentoNota: d.descuentoNota || null,
           requiereFactura: d.requiereFactura,
+          cargoFestivo: calc.cargoFestivo,
+          promo3Mas: calc.aplicaPrecio3Mas,
           notas: d.notas || null,
           unidades: {
             create: unidades.map((u) => ({

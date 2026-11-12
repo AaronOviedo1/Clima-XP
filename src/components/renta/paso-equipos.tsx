@@ -5,6 +5,7 @@ import type { RentaFormApi } from "@/hooks/use-renta-form";
 import { pesos } from "@/lib/dinero";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Colapsable } from "@/components/renta/bloques";
 
 /**
@@ -17,6 +18,12 @@ import { Colapsable } from "@/components/renta/bloques";
  */
 export function PasoEquipos({ form }: { form: RentaFormApi }) {
   const bloqueado = !!form.edicion?.bloquearUnidades;
+  const calentonPromo = form.calc.puedePromo3Mas
+    ? form.calc.unidades.find((u) => u.tipo === "CALENTON" && u.precioDia3Mas != null)
+    : undefined;
+  const promo = calentonPromo
+    ? { precio: calentonPromo.precioDia, precio3Mas: calentonPromo.precioDia3Mas! }
+    : null;
 
   return (
     <div className="space-y-4">
@@ -83,10 +90,23 @@ export function PasoEquipos({ form }: { form: RentaFormApi }) {
         })
       )}
 
-      {form.calc.aplicaPrecio3Mas && (
-        <p className="rounded-xl bg-chip-verde px-3.5 py-2.5 text-[13px] font-bold text-chip-verde-fg">
-          Aplica precio de 3+ calentones.
-        </p>
+      {/* La promo de 3+ calentones ya no es automática: se prende renta por
+          renta, cuando el fin de semana lo amerita. Solo se ofrece cuando
+          aplica (3+ calentones con precio promo capturado). */}
+      {promo && (
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border bg-card px-4 py-3">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-bold">Precio promo 3+ calentones</span>
+            <span className="block text-[12.5px] text-muted-foreground tabular-nums">
+              {pesos(promo.precio3Mas)} c/u en vez de {pesos(promo.precio)}
+            </span>
+          </span>
+          <Switch
+            className="origin-right scale-150"
+            checked={form.promo3Mas}
+            onCheckedChange={form.setPromo3Mas}
+          />
+        </label>
       )}
 
       {/* Para el caso raro: que salga una unidad concreta (color, estado…). */}

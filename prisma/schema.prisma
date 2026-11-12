@@ -201,6 +201,14 @@ model Renta {
   descuentoMonto Int     @default(0)
   descuentoNota  String? // "25% renta larga", "bomba fallaba"
 
+  // Cargo por día festivo (snapshot en pesos, ver lib/festivos.ts): se
+  // recalcula al crear/editar con la config del momento, así que cambiar el
+  // monto o los festivos no mueve rentas ya hechas.
+  cargoFestivo Int     @default(0)
+  // Promo de 3+ calentones (precioDia3Mas): se activa renta por renta. Se
+  // guarda porque editarRenta recalcula los snapshots de precio.
+  promo3Mas    Boolean @default(false)
+
   requiereFactura Boolean @default(false)
   facturada       Boolean @default(false)
   cfdiUuid        String?
@@ -264,7 +272,8 @@ model MensajeWhatsApp {
 }
 
 // Ajustes editables desde /configuracion (clave-valor).
-// Claves en uso: "bodegaLat", "bodegaLng" (fallback: env BODEGA_LAT/LNG).
+// Claves en uso: "bodegaLat", "bodegaLng" (fallback: env BODEGA_LAT/LNG),
+// "festivos" (JSON ["12-24", …]) y "cargoFestivo" (pesos por equipo por día).
 model Configuracion {
   clave     String   @id
   valor     String
